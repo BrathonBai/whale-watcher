@@ -1,0 +1,16 @@
+## IDF Component Manager Manifest File
+##
+## 这些组件已经 vendored 在 ../managed_components/（离线可编），版本与之一致。
+## 要升级：改这里 → 删掉 managed_components/<组件名> → idf.py build 会重新拉取。
+dependencies:
+  idf:
+    version: '>=5.4'
+
+  espressif/button: '3.5.0'
+  espressif/cmake_utilities: '0.5.3'
+  espressif/esp_codec_dev: '1.1.0'
+  espressif/esp_io_expander: '1.2.1'
+  espressif/esp_lcd_spd2010: '2.0.0~1'
+  espressif/esp_lcd_touch: '1.2.1'
+  espressif/esp_lcd_touch_spd2010: '2.1.0'
+  espressif/led_strip: '2.5.5'

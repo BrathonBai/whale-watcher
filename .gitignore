@@ -1,0 +1,39 @@
+# 本机凭据 —— 绝不提交（模板 .example 要提交，下面单独放行）
+firmware/main/wifi_local.h
+firmware/main/wifi_local.h.bak*
+firmware/main/wifi_local.h.old*
+*.pem
+*.key
+!firmware/main/wifi_local.h.example
+
+# 桥的运行态（面板保存的配置里含 API Key）
+plugins-data/
+**/plugins-data/
+config.json
+!firmware/**/config.json
+
+# 构建产物
+firmware/build/
+build/
+*.o
+*.obj
+*.elf
+*.map
+*.bin.bak
+
+# 第三方依赖（由 install/fetch-deps.ps1 下载，不要提交别人的代码）
+firmware/components/
+firmware/managed_components/
+
+# Python / 编辑器 / 系统
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志与临时
+*.log
+*.tmp

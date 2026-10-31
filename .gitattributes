@@ -1,0 +1,12 @@
+# 统一换行，避免 Windows/macOS 互相改行尾
+* text=auto eol=lf
+
+# PowerShell 脚本在 Windows 上用 CRLF 更稳（且已带 UTF-8 BOM）
+*.ps1 text eol=crlf
+
+# 二进制资源不要做文本转换
+*.bin  -text
+*.png  -text
+*.jpg  -text
+*.jpeg -text
+*.pdf  -text

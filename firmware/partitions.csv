@@ -1,0 +1,15 @@
+# 与设备实测分区表逐字一致（见 docs/移交清单.md §5 / tools/check_partitions.py）
+#
+# 为什么要在工程里放这份表：工程默认表是"单 app 1MB"，一旦有人跑 idf.py flash，
+# 就会把 0x8000 处的分区表覆盖成错的偏移 —— 设备直接起不来。用这份表时，
+# idf.py flash 写下去的内容与设备真实布局一致（但**仍然建议**只写 ota_1，
+# 见 firmware/device/build.ps1 与 docs/固件-v0.6-接入大脑.md）。
+#
+# name,       type, subtype, offset,     size
+nvsfactory,   data, 2,       0x9000,     0x32000
+nvs,          data, 2,       0x3b000,    0xd2000
+otadata,      data, 0,       0x10d000,   0x2000
+phy_init,     data, 1,       0x10f000,   0x1000
+model,        data, 130,     0x110000,   0xf0000
+ota_0,        app,  16,      0x200000,   0xc00000
+ota_1,        app,  17,      0xe00000,   0xc00000

@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 BrathonBai
+Copyright (c) 2026 The Whale Watcher Authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+本项目**只对下列自有代码**适用 MIT：
+  firmware/main/*（ESP-IDF 应用层）、bridge/*（DSH 插件）、install/*、docs/*
+
+随仓库 vendored 的第三方组件遵循各自的许可证，见 THIRD_PARTY.md，
+其中 `firmware/components/`、`firmware/managed_components/` 多为 Apache-2.0，
+`firmware/components/lvgl/` 为 MIT。二次分发时请保留各目录内的 license 文件。

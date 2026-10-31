@@ -1,0 +1,31 @@
+{
+  "name": "dsh-embodied-bridge",
+  "version": "0.3.0",
+  "private": true,
+  "description": "DSH 具身桥（鲸鲸 v2 契约）：设备 ⇄ DSH 大脑（WebSocket + 能力门控工具 + 会话/llm 双接法 + 面板）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./protocol": "./lib/protocol.js",
+    "./contract": "./lib/contract.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test/protocol.test.mjs && node test/ws.test.mjs && node test/contract.test.mjs && node test/session.mjs && node test/loop.mjs && node test/audit.mjs",
+    "contract": "node tools/gen-contract-doc.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

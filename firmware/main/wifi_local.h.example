@@ -1,0 +1,15 @@
+// main/wifi_local.h —— 本机凭据/桥地址模板（**不要提交到仓库**，已被 .gitignore 忽略）
+//
+// 用法：复制成 main/wifi_local.h，改成你自己的值。
+//   Copy-Item main\wifi_local.h.example main\wifi_local.h
+//
+// 注意：
+//   · 这个文件里的值会被编进固件，固件二进制里能看到，别把它发出去。
+//   · 优先级：设备 NVS（串口 >wifi 配过的）> 本文件 > 编译期 -D 宏。
+//   · 桥地址 = 跑 DSH 那台电脑的局域网 IP + 7788；换网后设备开机还会 UDP 广播自动找桥。
+
+#define HUB_WIFI_LOCAL_SSID "你的WiFi名称"
+#define HUB_WIFI_LOCAL_PASS "你的WiFi密码"
+
+// 端口 7788 是桥默认端口（config.js 的 port）；路径固定 /device
+#define HUB_BRIDGE_URL_LOCAL "ws://192.168.1.10:7788/device"

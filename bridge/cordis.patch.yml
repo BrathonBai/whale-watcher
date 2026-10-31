@@ -1,0 +1,20 @@
+# dsh-embodied-bridge bundle patch
+#
+# 只 insert 一行。config 里的字段都可以在 profile/cordis.patch.yml 里覆盖，
+# 也可以直接改 ~/.dsh/plugins-data/embodied-bridge/config.json（面板保存就写这里，
+# 改完即生效，不用重启）。
+#
+# brain：session = 设备有自己的 DSH 会话（看得见、能插话、共用工具）
+#        llm     = 插件自己调 ctx.llm（不建会话，也没有工具）
+#
+# 不写 provider/model 时，llm 回退会自己从目录里挑第一个。
+
+- insert:
+    - id: embodied-bridge
+      name: dsh-embodied-bridge
+      config:
+        host: 0.0.0.0
+        port: 7788
+        brain: session
+        maxReplyChars: 240
+        historyTurns: 8
