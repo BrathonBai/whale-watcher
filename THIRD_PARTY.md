@@ -1,11 +1,10 @@
 # 第三方组件与许可证
 
-> **GitHub 仓库里不放第三方源码**：只放 `firmware/main/`（自有应用层）与 `patches/`（IDF 5.5 兼容补丁）。
-> 依赖用 `install/fetch-deps.ps1` 拉取，见 `firmware/README.md`。
-> 本文件同时适用于"with-deps"发布包（它把下列组件 vendored 进去，方便离线编译）。
+> 仓库里 **vendored 了第三方依赖**，目的是 clone 下来就能编译（`firmware/components/` 与
+> `firmware/managed_components/`）。它们**不是本项目的代码**，版权归各上游，遵循各自许可证；
+> 二次分发请保留各目录内的 license 文件。想换成上游最新版，用 `install/fetch-deps.ps1`。
 
 本仓库的**自有代码**（`firmware/main/`、`bridge/`、`install/`、`docs/`）是 MIT，见 `LICENSE`。
-随发布包 vendored 的组件如下，二次分发请一并保留各目录内的 license 文件。
 
 ## firmware/components/（来自 Seeed-Studio/SenseCAP-Watcher-Firmware）
 

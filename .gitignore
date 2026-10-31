@@ -21,9 +21,11 @@ build/
 *.map
 *.bin.bak
 
-# 第三方依赖（由 install/fetch-deps.ps1 下载，不要提交别人的代码）
-firmware/components/
-firmware/managed_components/
+# 第三方依赖**要提交**（vendored，保证 clone 即编）。
+# 只有 fetch-deps 临时克隆下来的目录、以及构建产物才忽略。
+firmware/components/.git/
+# 本机额外克隆的上游副本放这里（若你为了升级临时克隆过）
+_reference/
 
 # Python / 编辑器 / 系统
 __pycache__/

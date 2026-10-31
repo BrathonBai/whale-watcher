@@ -12,12 +12,13 @@ ESP32-S3（鲸鲸） ──WiFi/WebSocket──▶ DSH 插件（桥）──▶ 
      └──────── 下行：say / face / shot / PCM 音频 ─┘
 ```
 
-本仓库是**发布包**：能直接编译的固件源码、能直接装进 DSH 的桥插件、两个交互式安装脚本、
-一份协议契约和一份踩坑手册。**不含任何密钥、WiFi 密码或本机路径**。
+本仓库是**完整可编译的工程**：固件源码 + 第三方依赖（vendored）+ 桥插件 + 安装脚本 +
+协议契约 + 踩坑手册。**不含任何密钥、WiFi 密码、本机路径，也不含外部参考仓库**。
 
-> **第三方代码不在仓库里**：`firmware/` 只有本项目写的 `main/`，Seeed BSP 与 LVGL 由
-> `install/fetch-deps.ps1` 拉取（联网 clone，或 `-Upstream/-LvglDir` 指向本地已有仓库）。
-> 想完全离线、一条命令编译，用带 `with-deps` 的发布包（它把依赖 vendored 进去了）。
+> **clone 下来直接能编**：`firmware/components/`（Seeed BSP + LVGL）与
+> `firmware/managed_components/`（8 个 Espressif 组件）都已随仓库提供，版本锁在
+> `main/idf_component.yml` 与 `dependencies.lock` 里。只想核对或升级依赖时，
+> 才需要 `install/fetch-deps.ps1`（它会重新拉上游并打 IDF 5.5 补丁）。
 
 | 整机（412 圆屏 + 相机 + 麦克风） | 屏上是桌宠，下面是她刚说的话 |
 | --- | --- |
@@ -27,9 +28,9 @@ ESP32-S3（鲸鲸） ──WiFi/WebSocket──▶ DSH 插件（桥）──▶ 
 
 | 路径 | 是什么 |
 | --- | --- |
-| `firmware/` | ESP-IDF 5.5 工程（`hub_v2`）。**只含自有 `main/`**；第三方组件见下方"依赖" |
-| `firmware/patches/cmake-idf55/` | 上游组件在 IDF 5.5 下必须替换的 5 个 CMakeLists |
-| `install/fetch-deps.ps1` | 拉 LVGL 8.4 + Seeed BSP 组件，并打上述补丁 |
+| `firmware/` | ESP-IDF 5.5 工程（`hub_v2`）：`main/` 是自有代码，`components/` + `managed_components/` 是随仓库提供的依赖 |
+| `firmware/patches/cmake-idf55/` | 上游组件在 IDF 5.5 下必须替换的 5 个 CMakeLists（仓库里的组件已打过） |
+| `install/fetch-deps.ps1` | 可选：重新拉 LVGL 8.4 + Seeed BSP 并打补丁（升级依赖或删坏了时用） |
 | `bridge/` | DSH 插件 `dsh-embodied-bridge@0.3`（WebSocket 服务 + 能力门控工具 + 面板 + TTS/ASR） |
 | `install/install-bridge.ps1` | 交互式装插件：**会问 TTS 引擎与音色**、ASR、端口，写本机配置 |
 | `install/flash-firmware.ps1` | 交互式刷固件：问 WiFi/桥地址 → 生成 `wifi_local.h` → build → 烧到 `0xe00000` |

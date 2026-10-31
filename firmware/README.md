@@ -25,13 +25,17 @@ main/idf_component.yml 8 个 Espressif 组件（版本已锁）
 dependencies.lock     上述组件的解析结果
 ```
 
-**不含**这些第三方源码（GitHub 仓库里也不含，避免把别人代码当自己的交）：
+**这些依赖已经随仓库提供**（`components/` 7 个 BSP 组件 + LVGL 8.4；`managed_components/` 8 个
+Espressif 组件），所以 clone 下来直接 `idf.py build` 即可，**不需要联网也不需要补依赖**：
 
-| 缺的东西 | 从哪来 | 怎么补 |
+| 依赖 | 来源 | 谁在用 |
 | --- | --- | --- |
-| `components/sensecap-watcher`、`esp_io_expander_pca95xx_16bit`、`esp_lcd_touch_chsc6x`、`esp_jpeg_simd`、`esp_lvgl_port`、`knob`、`sscma_client` | [Seeed-Studio/SenseCAP-Watcher-Firmware](https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware) 的 `components/` | `install/fetch-deps.ps1` 复制 |
-| `components/lvgl` | [lvgl/lvgl](https://github.com/lvgl/lvgl) **v8.4.0**（Seeed 仓库里是 submodule，不含源码） | 同上 |
-| `managed_components/*`（8 个 Espressif 组件） | Component Registry | `idf.py build` 自动拉，版本见 `dependencies.lock` |
+| `components/sensecap-watcher`、`esp_io_expander_pca95xx_16bit`、`esp_lcd_touch_chsc6x`、`esp_jpeg_simd`、`esp_lvgl_port`、`knob`、`sscma_client` | [Seeed-Studio/SenseCAP-Watcher-Firmware](https://github.com/Seeed-Studio/SenseCAP-Watcher-Firmware) 的 `components/` | 屏/触摸/音频/IO 扩展/摄像头 |
+| `components/lvgl` | [lvgl/lvgl](https://github.com/lvgl/lvgl) **v8.4.0** | 412×412 渲染 |
+| `managed_components/*`（8 个） | Component Registry（版本见 `dependencies.lock`） | codec / LCD touch / LED 等 |
+
+> 想升级或重新取上游：`install/fetch-deps.ps1` 会重新克隆并自动打下面的补丁。
+> 它也会覆盖 `components/`，所以平时**不用跑**。
 
 ## 为什么要 5 个补丁
 
@@ -46,16 +50,18 @@ dependencies.lock     上述组件的解析结果
 | `sscma_client` | IDF 6 分支的 `espressif__cjson` 判断缺失 | 补版本判断 |
 
 `fetch-deps.ps1` 会在复制完组件后用 `patches/cmake-idf55/*__CMakeLists.txt` 覆盖对应文件。
-
-## 构建
+若你想自己从上游重来一遍（而不是用仓库里已打补丁的版本），按这个顺序：
 
 ```powershell
-# 1) 补依赖（联网），或 -Upstream/-LvglDir 指向本地已有仓库
+# 1) 可选：重新取依赖并打补丁
 powershell -ExecutionPolicy Bypass -File ..\install\fetch-deps.ps1
+```
 
-# 2) 构建（目录必须纯 ASCII）
+## 构建（clone 下来就能编）
+
+```powershell
+cd firmware
 idf.py -B C:\hub\build -DIDF_TARGET=esp32s3 build
 ```
 
-> 不想联网、也不想自己补依赖？用发布包里的 **with-deps** 版本（`firmware/components` 和
-> `managed_components` 都已 vendored），`install/flash-firmware.ps1` 直接能编能刷。
+> 构建目录必须纯 ASCII（中文路径会让 kconfig 生成失败）；改完要刷机见 `install/flash-firmware.ps1`。
