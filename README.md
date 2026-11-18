@@ -64,6 +64,14 @@ $env:DEEPSEEK_API_KEY = "sk-..."
 > 注意：覆盖集是「改官方 APK 后重签」，因此和官方 release 签名不一致，装官方新版前需要卸载。
 > 长期方案：`dsh-go-ble` 的更新版拆成「官方 App 保持原版 + 标准 DSH 插件 + 独立 BLE 网关 App」，见 `docs/` 与上游 issue。
 
+## 加入 DSH 插件社区
+
+- GitHub topic：**[dsh-plugin](https://github.com/topics/dsh-plugin)** · `deepseek-harness` · `cordis`
+- 插件包位置：`bridge/`（标准 DSH Host bundle：`package.json` 的 `dsh.bundle.patch` + `locale/` + `icon.svg`）
+- 安装：在 DSH 的 **Plugins → Add plugin** 选择 `bridge/` 目录（或 `plugin_manager install_bundle` 指向该目录）；
+  也可以 `cd bridge && npm pack` 后用本地 tarball 安装。无需发布到 npm。
+- 插件配置：DeepSeek 语音需要 `DEEPSEEK_API_KEY`；不配则自动回退 Edge/旧 ASR。设备接入见上面的固件/BLE 网关说明。
+
 ## 跟随上游 dsh-Go
 
 - Fork：https://github.com/BrathonBai/dsh-Go

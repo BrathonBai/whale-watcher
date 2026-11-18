@@ -1,5 +1,22 @@
 # dsh-embodied-bridge
 
+> **DSH 插件**：本目录是一个标准 DSH Host bundle（`package.json` 声明
+> `dsh.bundle.patch`，带 `locale/` 与 `icon.svg`），通过 Cordis 注册一个 WebSocket
+> 设备桥。GitHub topic：`dsh-plugin` / `deepseek-harness` / `cordis`。
+>
+> 设备固件、BLE 网关和真机报告在同仓库：`firmware-v2/`、`dsh-go-ble/`、`docs/`。
+
+## 作为 DSH 插件安装
+
+1. 有带插件管理器的 DSH（桌面版，或支持 Plugins 的 dsh-Go 引擎）。
+2. 本地目录安装：把 `bridge/` 整个目录放到任意路径，在 **Plugins → Add plugin** 选择该目录；
+   或让 DSH 执行 `plugin_manager` 的 `install_bundle`，`target` 填 `bridge/` 的绝对路径。
+3. 没有 npm 发布要求；也可以 `npm pack` 生成 tarball 后从本地安装。
+4. 安装后插件会注册 `embodied-bridge` 一行；配置从 `plugins-data/embodied-bridge/config.json`
+   或插件配置读取。DeepSeek 语音需要 `DEEPSEEK_API_KEY`（或配置 `deepseekApiKey`）。
+5. 桥启动后默认 `ws://0.0.0.0:7788/device`，面板 `/panel`，健康检查 `/health`。
+   手机 BLE 网关/固件接入见仓库根 README。
+
 把具身节点（SenseCAP Watcher / 鲸鲸 v2）接进 DSH 大脑的插件。
 
 ```
