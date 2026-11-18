@@ -1,6 +1,6 @@
 // audio_dec.h —— 下行 Opus 裸包解码（设备侧，基于 vendored micro-opus / libopus）。
 //
-// 线协议（跨线已定，改动要同步 docs/迭代-2026-11-03-设备Opus.md）：
+// 线协议（跨线已定，改动要同步 docs/协议-v2-契约.md）：
 //   audio 头 codec="opus" 时，**每个 WS 二进制帧 = 一个裸 Opus 包**
 //   （20 ms / 16 kHz 单声道，无长度前缀，1..1275 B）。
 //   解码器输出 24 kHz / 16 bit / 单声道 PCM，写进 audio 模块现有的 PCM 环形缓冲。

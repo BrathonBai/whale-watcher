@@ -93,7 +93,7 @@ extern "C" void app_main(void) {
     if (rst == ESP_RST_PANIC || rst == ESP_RST_TASK_WDT || rst == ESP_RST_INT_WDT ||
         rst == ESP_RST_WDT || rst == ESP_RST_CPU_LOCKUP || rst == ESP_RST_BROWNOUT) {
         ESP_LOGE(TAG, "上次复位是异常（%s）：若固件开了 coredump 且分区表已刷，"
-                      "重启前可用 esptool 读 0x1a00000 取 core dump（见 docs/迭代-2026-11-03-固件配置与稳定性.md）",
+                      "重启前可用 esptool 读 0x1a00000 取 core dump（见 docs/故障手册-2026-10-31.md）",
                  ResetReasonName(rst));
     }
 

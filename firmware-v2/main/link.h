@@ -1,6 +1,6 @@
 // link.h —— 对上层唯一的传输门面：BLE 直连手机。
 //
-// 契约：docs/蓝牙直连dsh-go-设计与协议-2026-11-13.md §5.1。
+// 契约：docs/协议-v2-契约.md §5.1。
 // 2026-11-13 v0.4 起设备固件**取消 WiFi / PC 桥**，只保留 BLE（用户要求）；
 // 上层（app_ui / input / camera）只看这个 namespace：
 //   · Active() = 当前生效链路（None / Ble）；None→Ble 或 Ble→None 都算一次"新连接"

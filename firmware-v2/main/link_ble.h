@@ -1,6 +1,6 @@
 // link_ble.h —— BLE 链路传输层（NimBLE GATT peripheral），只被 link.cc 使用。
 //
-// 契约：docs/蓝牙直连dsh-go-设计与协议-2026-11-13.md §3/§4/§5
+// 契约：docs/协议-v2-契约.md §3/§4/§5
 //   - GATT Service / DOWN(write,write-no-rsp) / UP(notify)，MTU preferred 247；
 //   - 每个 BLE 包 = 7 字节头 + 负载（magic 0xA5 / type / flags / frag_index /
 //     frag_total / payload_len LE16）；

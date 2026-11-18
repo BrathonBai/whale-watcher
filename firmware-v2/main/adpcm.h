@@ -1,6 +1,6 @@
 // adpcm.h —— IMA/DVI ADPCM 编/解码（BLE 链路的上下行音频编码）。
 //
-// 契约来源（唯一事实源）：docs/蓝牙直连dsh-go-设计与协议-2026-11-13.md §6 +
+// 契约来源（唯一事实源）：docs/协议-v2-契约.md §6 +
 // bridge/lib/adpcm.js（参考实现，已用 ffmpeg 的 adpcm_ima_wav 交叉验证）。
 //
 // 块格式（与 ffmpeg 的 adpcm_ima_wav 同构）：

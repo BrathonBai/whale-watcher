@@ -1,6 +1,6 @@
 // adpcm.cc —— 见 adpcm.h。逐样本/逐字节与 bridge/lib/adpcm.js 对齐。
 //
-// 契约：docs/蓝牙直连dsh-go-设计与协议-2026-11-13.md §6（2026-11-13 裁决版：
+// 契约：docs/协议-v2-契约.md §6（2026-11-13 裁决版：
 // 块 = 1024 字节 = 4B 头 + 1020B nibbles = 2041 采样，头里的 predictor 就是本块
 // 第一个 PCM 采样；编码从第 2 个采样开始，解码先输出头采样）。
 #include "adpcm.h"

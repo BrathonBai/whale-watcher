@@ -1,6 +1,6 @@
 // link_ble.cc —— 见 link_ble.h。NimBLE GATT peripheral + 7 字节帧分片/重组。
 //
-// 契约：docs/蓝牙直连dsh-go-设计与协议-2026-11-13.md §3/§4/§5。
+// 契约：docs/协议-v2-契约.md §3/§4/§5。
 // 关键点（都是"真机上最容易踩"的地方，先写死在代码里）：
 //   · GATT write 回调在 NimBLE host task 里跑：只做头校验 + 拷进重组缓冲，绝不解析 JSON；
 //   · notify 在 mbuf 不足时返回 BLE_HS_ENOMEM：按片重试 200 ms，超时丢整条并计 tx_drop；

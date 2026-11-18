@@ -65,7 +65,7 @@ namespace {
 // 环形缓冲：24 kHz × 16 bit × 2.5 s = 120 KB PSRAM。
 // 原来按 12 s 开（576 KB）；实测 12 s 只会把"打断/停播"的延迟拖到十秒级，对话里没有收益。
 // 2.5 s 足够吸收链路抖动 + 桥侧预缓冲（~300 ms），同时给 Opus 伪栈（120 KB）/状态
-// （~50 KB）/包队列（80 KB）腾出 PSRAM。改动这里要同步 docs/迭代-2026-11-03-设备Opus.md。
+// （~50 KB）/包队列（80 KB）腾出 PSRAM。改动这里要同步 docs/协议-v2-契约.md。
 constexpr int kStreamBufferMs = 2500;
 constexpr int kRingSamples = kRate * kStreamBufferMs / 1000;          // 60000 采样
 constexpr size_t kRingBytes = (size_t)kRingSamples * sizeof(int16_t);  // 120000 B
