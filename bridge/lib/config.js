@@ -12,13 +12,13 @@ export const DEFAULTS = {
   host: '0.0.0.0',
   port: 7788,
   path: '/device',
-  // 2026-11-13（BLE 直连手机）：wsToken 非空时 /device 必须带 ?token=xxx（手机 guest 注入时
+  // 2026-11-13（BLE 直连手机）：wsToken 非空时 /device 必须带 ?token=xxx（手机宿主启用时
   // 由 App 生成随机 token；PC 保持空 = 行为不变）。手机 loopback 上任何 App 都能连 127.0.0.1，
   // 没有 token 就等于把设备控制面开放给全机，所以手机端必须开。
   wsToken: '',
   heartbeatMs: 25000,
   discoverPort: 7789,
-  // UDP 局域网发现（PC 桥给设备换网后自动找地址用）。手机端无意义 → guest 注入时关掉。
+  // UDP 局域网发现（PC 桥给设备换网后自动找地址用）。手机宿主无此场景 → 关闭。
   discover: true,
 
   // ---- 大脑 ----

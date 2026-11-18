@@ -4,18 +4,18 @@
 > `dsh.bundle.patch`，带 `locale/` 与 `icon.svg`），通过 Cordis 注册一个 WebSocket
 > 设备桥。GitHub topic：`dsh-plugin` / `deepseek-harness` / `cordis`。
 >
-> 设备固件、BLE 网关和真机报告在同仓库：`firmware-v2/`、`dsh-go-ble/`、`docs/`。
+> 设备固件与真机报告在同仓库：`firmware-v2/`、`docs/`。
 
 ## 作为 DSH 插件安装
 
-1. 有带插件管理器的 DSH（桌面版，或支持 Plugins 的 dsh-Go 引擎）。
+1. 有带插件管理器的 DSH（桌面版，或支持 Plugins 的 DSH 引擎）。
 2. 本地目录安装：把 `bridge/` 整个目录放到任意路径，在 **Plugins → Add plugin** 选择该目录；
    或让 DSH 执行 `plugin_manager` 的 `install_bundle`，`target` 填 `bridge/` 的绝对路径。
 3. 没有 npm 发布要求；也可以 `npm pack` 生成 tarball 后从本地安装。
 4. 安装后插件会注册 `embodied-bridge` 一行；配置从 `plugins-data/embodied-bridge/config.json`
    或插件配置读取。DeepSeek 语音需要 `DEEPSEEK_API_KEY`（或配置 `deepseekApiKey`）。
 5. 桥启动后默认 `ws://0.0.0.0:7788/device`，面板 `/panel`，健康检查 `/health`。
-   手机 BLE 网关/固件接入见仓库根 README。
+   手机 BLE 网关接入见仓库根 README。
 
 把具身节点（SenseCAP Watcher / 鲸鲸 v2）接进 DSH 大脑的插件。
 
@@ -77,7 +77,7 @@ v0.3 的做法：**设备没有的，桥就不假装有。**
 
 ## BLE 直连手机（2026-11-13）
 
-设备除了 WiFi 连 PC，还可以通过 **BLE** 连手机 dsh-Go（手机 App 当透明网关，桥在手机引擎里）。
+设备还可以通过 **BLE** 连接手机 DSH 宿主（宿主原生层负责 BLE 网关，桥在引擎里跑）。
 
 - 线上协议**完全不变**；只是在 `hello` 里多几个可选字段：`transport`（ble/wifi）、`uplink`
   （pcm/adpcm）、`mtu`、`name`，`pong` 里多 `transport/mtu/txDrop/rxDrop`。
@@ -90,7 +90,7 @@ v0.3 的做法：**设备没有的，桥就不假装有。**
 - **wsToken**（手机端必开）：`/device` 需要 `?token=<wsToken>`，否则 401。手机 loopback 上
   任何 App 都能连 127.0.0.1，没有这道口令等于把设备控制面开放给全机。PC 默认空串 = 行为不变。
 - **discover**（默认开）：`discover:false` 时不绑 UDP 7789（手机端没有"局域网找桥"场景）。
-- 手机端注入方式与默认配置见 `dsh-go-ble/`（guest 插件，不改运行时）。
+- 手机宿主的 BLE 网关由宿主提供；桥只负责 WebSocket 帧、音频与工具。
 
 ## 语音：DeepSeek 官方 TTS / ASR（2026-11-13）
 

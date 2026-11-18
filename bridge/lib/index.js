@@ -528,7 +528,7 @@ export function apply(ctx, pluginConfig) {
   })
 
   // ---------------- 局域网发现 ----------------
-  // 2026-11-13：discover=false 时不绑 UDP（手机端 guest 注入会关掉；手机里没有"局域网找桥"场景）。
+  // 2026-11-13：discover=false 时不绑 UDP（手机宿主关闭；手机里没有"局域网找桥"场景）。
   let disco = null
   if (cfg.get().discover === false) {
     log.info('局域网发现已关闭（discover=false）')

@@ -120,7 +120,7 @@ async function tick() {
       `不具备：<b class="bad">${Object.keys(cap.unsupported||{}).join(' / ')}</b><br>` +
       `采集：<b>${s.device.collecting ? s.device.collecting.kind + ' ' + s.device.collecting.got + '/' + s.device.collecting.bytes : '空闲'}</b>`;
     // 音频编码/自适应：用 textContent 而不是 innerHTML —— reason 里可能带设备自报的 codecs 字符串，
-    // 同网段伪设备可借它在面板注入 HTML（审计 BR-36 同一类问题）。
+    // 同网段伪设备可借它在面板注入 HTML（同类问题）。
     if (s.audio) {
       const a = s.audio;
       const parts = [
@@ -151,7 +151,7 @@ async function tick() {
       for (const e of ev.events.slice(-12)) {
         const li = document.createElement('li');
         // textContent 而不是 innerHTML：hello 的 fw/board/ver 是设备可控字符串，
-        // 同网段伪设备可借它在面板里注入 HTML（审计 BR-36）。
+        // 同网段伪设备可借它在面板里注入 HTML。
         li.textContent = `${e.kind} ${new Date(e.at).toLocaleTimeString()} ${JSON.stringify(e.msg).slice(0, 90)}`;
         ul.prepend(li);
       }

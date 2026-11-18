@@ -254,7 +254,7 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
         conn = null
         log.warn('已有连接，被新连接顶掉（设备可能刚重启）')
       }
-      // wsToken：手机端 guest 注入时配置；PC 默认空 = 不校验（老固件不用改）。
+      // wsToken：手机宿主配置；PC 默认空 = 不校验（老固件不用改）。
       const token = String(cfg.get().wsToken ?? '').trim()
       const c = acceptUpgrade(req, socket, head, {
         path: cfg.get().path,
