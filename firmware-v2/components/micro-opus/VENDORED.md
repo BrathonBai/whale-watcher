@@ -55,7 +55,7 @@ Xtensa 补丁追加的 `celt/xtensa/`、`patches/`（staging 阶段要用 `patch
      Git（IDF 自身也要用 git 取版本信息），因此不引入新的构建依赖。
   该修改已在 Windows + IDF v5.5.0 + 本机 Xtensa 工具链下做端到端验证：6 个补丁全部应用、
   Xtensa 附加文件拷入 staged 树，**staged 的 142 个 C/C++ 源文件用 xtensa gcc/g++
-  `-fsyntax-only` 全部通过**（详见 `docs/迭代-2026-11-03-设备Opus.md` §7/§8）。
+  `-fsyntax-only` 全部通过**（详见 `docs/协议-v2-契约.md`）。
 - 上表"裁剪内容"里删掉的是未参与编译的开发目录；`lib/opus` 的编译源文件、`patches/`、
   `cmake/`、`micro-ogg-demuxer` 均完整保留。
 - 上游 libopus 版本：组件 `cmake/config.h.in` 内为 `PACKAGE_VERSION "1.4"`（xiph/opus 1.4，
