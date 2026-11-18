@@ -1,41 +1,35 @@
-# 本机凭据 —— 绝不提交（模板 .example 要提交，下面单独放行）
-firmware/main/wifi_local.h
-firmware/main/wifi_local.h.bak*
-firmware/main/wifi_local.h.old*
+﻿# 本机凭据（绝不提交）
+firmware-v2/main/wifi_local.h
+firmware-v2/main/wifi_local.h.*
 *.pem
 *.key
-!firmware/main/wifi_local.h.example
-
-# 桥的运行态（面板保存的配置里含 API Key）
-plugins-data/
+bridge/config.json
 **/plugins-data/
-config.json
-!firmware/**/config.json
 
-# 构建产物
-firmware/build/
+# 构建产物 / 日志 / 依赖缓存
+firmware-v2/build/
 build/
+**/.dart_tool/
+**/node_modules/
 *.o
 *.obj
 *.elf
 *.map
-*.bin.bak
-
-# 第三方依赖**要提交**（vendored，保证 clone 即编）。
-# 只有 fetch-deps 临时克隆下来的目录、以及构建产物才忽略。
-firmware/components/.git/
-# 本机额外克隆的上游副本放这里（若你为了升级临时克隆过）
-_reference/
-
-# Python / 编辑器 / 系统
-__pycache__/
-*.pyc
-.venv/
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# 日志与临时
 *.log
 *.tmp
+*.bak
+*.bak-*
+
+# 本机实验/归档（不进仓库）
+_archive/
+_lab/
+dist/
+reference/
+snapshot-*/
+.tmp-*/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

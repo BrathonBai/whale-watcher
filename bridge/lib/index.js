@@ -19,9 +19,9 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { createConfig, dataDir } from './config.js'
+import { createConfig, dataDir, ttsEngineOf, asrModeOf } from './config.js'
 import { summarize } from './contract.js'
-import { dirStats, pruneDir } from './retention.js'
+import { dirStats, effectiveKeep, pruneDir } from './retention.js'
 import { guessMood, parseDeviceMessage, PROTOCOL_VERSION } from './protocol.js'
 import { createDevice } from './device.js'
 import { createSpeaker } from './speech.js'
@@ -29,6 +29,8 @@ import { createAsr } from './asr.js'
 import { createBrain } from './brain.js'
 import { createTools } from './tools.js'
 import { createHttp, newToken, ttsConfigured } from './http.js'
+import { ffmpegLabel, ffmpegLooksUsable } from './opus_encode.js'
+import { ADPCM, decodeBlocks } from './adpcm.js'
 
 export const name = 'embodied-bridge'
 export const inject = ['tools', 'llm']
@@ -40,7 +42,8 @@ const FALLBACKS = [
   '听得见你，就是回得慢了点，再来一次。',
 ]
 
-function makeLogger(file) {
+function makeLogger(file, maxBytes = 8 * 1024 * 1024) {
+  let writes = 0
   const safeJson = (v) => {
     try {
       return JSON.stringify(v)
@@ -48,10 +51,18 @@ function makeLogger(file) {
       return String(v)
     }
   }
+  const rotate = () => {
+    // 只在启动时轮转一次会让长跑进程无限增长（审计 BR-33）；每 512 行检查一次大小。
+    if (++writes % 512 !== 0) return
+    try {
+      if (fs.statSync(file).size > maxBytes) fs.renameSync(file, file + '.1')
+    } catch {}
+  }
   const write = (level, args) => {
     const line = `${new Date().toISOString()} ${level} ` + args.map((a) => (typeof a === 'string' ? a : safeJson(a))).join(' ') + '\n'
     try {
       fs.appendFileSync(file, line)
+      rotate()
     } catch {}
   }
   return {
@@ -63,6 +74,26 @@ function makeLogger(file) {
       console.warn('[embodied]', ...a)
       write('W', a)
     },
+  }
+}
+
+/** 日志里展示配置值：密钥类打码，长字符串截断（审计 E-04 要求"来源可见"但不能泄密）。 */
+const LOG_SECRET_KEYS = new Set([
+  'breezeApiKey',
+  'deepseekApiKey',
+  'panelToken',
+  'wsToken',
+  'asrCommand',
+  'asrServerCommand',
+  'ttsPython',
+])
+function fmtCfgValue(key, value) {
+  if (LOG_SECRET_KEYS.has(key)) return String(value ?? '').trim() ? '***' : '""'
+  if (typeof value === 'string') return value.length > 60 ? value.slice(0, 60) + '…' : value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
   }
 }
 
@@ -96,9 +127,11 @@ export function apply(ctx, pluginConfig) {
   const cfg = createConfig(pluginConfig)
   const startedAt = Date.now()
   const dir = dataDir()
+  // 默认日志改到 plugins-data 下（原来固定 %LOCALAPPDATA%\hubdev\bridge.log，
+  // 测试实例与生产实例会互相污染；审计 BR-33）。
   const logFile =
     String(cfg.get().logFile || '').trim() ||
-    path.join(process.env.LOCALAPPDATA || process.env.HOME || os.tmpdir(), 'hubdev', 'bridge.log')
+    path.join(dir, 'logs', `bridge-${new Date().toISOString().slice(0, 10)}.log`)
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true })
     const st = fs.statSync(logFile)
@@ -107,13 +140,29 @@ export function apply(ctx, pluginConfig) {
   const log = makeLogger(logFile)
 
   log.info(`—— 启动 v0.3（v2 契约）· ${new Date().toISOString()} · 配置 ${path.join(dir, 'config.json')}`)
+  log.info(`   日志 ${logFile}`)
   log.info(`   上行 ${summarize().uplink.join('/')} · 下行 ${summarize().downlink.join('/')}`)
+
+  // 配置来源可见（审计 E-04 / BR-26）：启动就打印"有效值 + 来自哪一层"，
+  // 并用显式 warn 指出 config.json 被插件 patch 盖住的键，不再静默覆盖。
+  const cfgLayers = cfg.layerInfo()
+  const nonDefault = Object.entries(cfgLayers.sources).filter(([, v]) => v.from !== 'default')
+  if (nonDefault.length) {
+    log.info('   配置来源：' + nonDefault.map(([k, v]) => `${k}=${fmtCfgValue(k, v.value)}（${v.from}）`).join(' · '))
+  }
+  for (const s of cfgLayers.shadowed) {
+    log.warn(
+      `   配置被覆盖：config.json 的 ${s.key}=${fmtCfgValue(s.key, s.file)} 被 patch 层 ${fmtCfgValue(s.key, s.patch)} 盖住` +
+        `（实际生效 ${fmtCfgValue(s.key, s.effective)}；要改就改 profile/cordis.patch.yml）`,
+    )
+  }
 
   // 启动即按保留策略清一次：上次运行可能留下很多图/语音（设备以前是 8 秒一张）
   const imgMatch = (n) => n.endsWith('.jpg')
   const wavMatch = (n) => n.endsWith('.wav')
   const prStart = {
-    images: pruneDir(imageDir(), cfg.get().imageKeep, imgMatch),
+    // E-05：imageKeep=0 的语义应为"不留历史"，但最新一张必须保留（否则 device_shot 的 path 立即失效）
+    images: pruneDir(imageDir(), effectiveKeep(cfg.get().imageKeep), imgMatch),
     voice: pruneDir(voiceDir(), cfg.get().voiceKeep, wavMatch),
   }
   const stStart = { images: dirStats(imageDir(), imgMatch), voice: dirStats(voiceDir(), wavMatch) }
@@ -169,7 +218,7 @@ export function apply(ctx, pluginConfig) {
     while (recentImages.length > 3) recentImages.shift()
     // 保留策略：只留最近 imageKeep 张。设备改成"按需拍照"之后数量不可预测，
     // 而模型/面板真正用到的只有最新一张（2026-10-31 用户要求，避免占盘又没人清）。
-    const pr = pruneDir(imageDir(), cfg.get().imageKeep, (n) => n.endsWith('.jpg'))
+    const pr = pruneDir(imageDir(), effectiveKeep(cfg.get().imageKeep), (n) => n.endsWith('.jpg'))
     if (pr.removed) log.info(`图片清理：删 ${pr.removed} 张（保留 ${pr.kept}，释放 ${(pr.bytesFreed / 1024).toFixed(0)} KB）`)
     const info = { ok: true, path: file, bytes: buf.length, w: acc.w, h: acc.h, ms: acc.ms }
     for (const w of imageWaiters.splice(0)) w(info)
@@ -256,20 +305,38 @@ export function apply(ctx, pluginConfig) {
 
   async function finishVoice(acc) {
     if (!acc || acc.got === 0) return
-    const secs = acc.got / 2 / acc.rate
+    const codec = acc.codec || 'pcm'
+    let pcm = acc.buf
+    let rate = acc.rate
+    let decodedSamples = 0
+    if (codec === 'adpcm') {
+      // 2026-11-13（BLE）：设备上行是 IMA ADPCM，先解回 24k PCM 再写 WAV → ASR 完全不用改。
+      const dec = decodeBlocks(acc.buf, { samples: acc.samples })
+      pcm = dec.pcm
+      rate = ADPCM.rate
+      decodedSamples = dec.samples
+      log.info(
+        `语音解码 adpcm→pcm：${acc.got} B → ${pcm.length} B（${dec.blocks} 块` +
+          `${dec.trimmed ? `，裁掉补齐 ${dec.trimmed} 采样` : ''}${dec.trailing ? `，尾部残 ${dec.trailing} B` : ''}）`,
+      )
+    } else if (codec !== 'pcm') {
+      log.warn(`语音上行 codec="${codec}" 不认识（只支持 pcm/adpcm）→ 丢弃本段`)
+      return
+    }
+    const secs = pcm.length / 2 / rate
     const p = path.join(voiceDir(), `voice-${new Date().toISOString().replace(/[:.]/g, '-')}-${acc.seq}.wav`)
     try {
-      fs.writeFileSync(p, wavBytes(acc.buf, acc.rate))
+      fs.writeFileSync(p, wavBytes(pcm, rate))
     } catch (e) {
       log.warn('写 WAV 失败：', e?.message ?? e)
       return
     }
-    log.info(`语音片段 ${acc.got} B（${secs.toFixed(1)}s）→ ${p}`)
+    log.info(`语音片段 ${acc.got} B（${secs.toFixed(1)}s${decodedSamples ? `，${decodedSamples} 采样` : ''}）→ ${p}`)
     // 语音同样只留最近 N 段：识别完的 WAV 只是排查用的证据，不必长期堆着。
     const pv = pruneDir(voiceDir(), cfg.get().voiceKeep, (n) => n.endsWith('.wav'))
     if (pv.removed) log.info(`语音清理：删 ${pv.removed} 段（保留 ${pv.kept}，释放 ${(pv.bytesFreed / 1024).toFixed(0)} KB）`)
 
-    const { text, route, ms } = await asr.transcribe(p)
+    const { text, route, ms } = await asr.transcribe(p, { pcm, rate })
     if (!text) {
       // 显式失败：把"哪一路都没成"的原因写全，而不是只说一句"没听清"
       log.warn(`ASR 空（route=${route}，${secs.toFixed(1)}s/${acc.got}B）：${asr.lastReason || '没有可用识别引擎'}`)
@@ -302,7 +369,17 @@ export function apply(ctx, pluginConfig) {
 
     switch (m.t) {
       case 'hello': {
-        log.info(`设备上线 fw=${m.fw} board=${m.board} ver=${m.ver} cam=${m.cam} ${m.w}x${m.h}`)
+        const codecTxt = m.codecs?.length ? m.codecs.join('/') : '未声明（老固件 → PCM）'
+        log.info(
+          `设备上线 fw=${m.fw} board=${m.board} ver=${m.ver} cam=${m.cam} ${m.w}x${m.h}` +
+            ` 音频=${codecTxt}${m.opusRate ? ` opusRate=${m.opusRate}` : ''}` +
+            ` 链路=${m.transport || 'wifi'}${m.name ? ` 名字=${m.name}` : ''}` +
+            `${m.mtu ? ` mtu=${m.mtu}` : ''}${m.uplink ? ` 上行=${m.uplink}` : ''}`,
+        )
+        // 配置强制 opus 但设备没声明 → 显式告警（不是静默降级；/api/state.audio.effective 也会显示 pcm）
+        if (String(cfg.get().audioCodec) === 'opus' && !m.codecs?.includes('opus')) {
+          log.warn('配置 audioCodec=opus，但设备 hello 未声明 opus 能力 → 显式回退 PCM（固件升级后自动恢复）')
+        }
         device.welcome()
         device.face('idle')
         brain.prewarm?.()
@@ -415,10 +492,11 @@ export function apply(ctx, pluginConfig) {
     shootOnce,
     asr,
     startedAt,
+    paths: { logFile, configFile: path.join(dir, 'config.json'), dataDir: dir, voiceDir: voiceDir() },
     lastImage: () => lastImagePath,
     storage: () => ({
-      images: { ...dirStats(imageDir(), imgMatch), keep: Number(cfg.get().imageKeep) || 0 },
-      voice: { ...dirStats(voiceDir(), wavMatch), keep: Number(cfg.get().voiceKeep) || 0 },
+      images: { ...dirStats(imageDir(), imgMatch), keep: effectiveKeep(cfg.get().imageKeep) },
+      voice: { ...dirStats(voiceDir(), wavMatch), keep: effectiveKeep(cfg.get().voiceKeep) },
     }),
   })
 
@@ -450,35 +528,93 @@ export function apply(ctx, pluginConfig) {
   })
 
   // ---------------- 局域网发现 ----------------
+  // 2026-11-13：discover=false 时不绑 UDP（手机端 guest 注入会关掉；手机里没有"局域网找桥"场景）。
   let disco = null
-  try {
-    disco = dgram.createSocket('udp4')
-    disco.on('message', (msg, rinfo) => {
-      const reply = JSON.stringify({ t: 'here', svc: 'embodied-bridge', port: Number(cfg.get().port), ver: PROTOCOL_VERSION })
-      disco.send(reply, rinfo.port, rinfo.address, () => {})
-      log.info(`发现请求来自 ${rinfo.address}:${rinfo.port} → 已回应`)
-    })
-    disco.on('error', (e) => log.warn('发现端口错误：', e?.message ?? e))
-    disco.bind(Number(cfg.get().discoverPort) || 7789, '0.0.0.0', () => {
-      log.info(`发现端口 udp://0.0.0.0:${Number(cfg.get().discoverPort) || 7789}`)
-    })
-  } catch (e) {
-    log.warn('发现端口起不来：', e?.message ?? e)
+  if (cfg.get().discover === false) {
+    log.info('局域网发现已关闭（discover=false）')
+  } else {
+    try {
+      disco = dgram.createSocket('udp4')
+      disco.on('message', (msg, rinfo) => {
+        const reply = JSON.stringify({ t: 'here', svc: 'embodied-bridge', port: Number(cfg.get().port), ver: PROTOCOL_VERSION })
+        disco.send(reply, rinfo.port, rinfo.address, () => {})
+        log.info(`发现请求来自 ${rinfo.address}:${rinfo.port} → 已回应`)
+      })
+      disco.on('error', (e) => log.warn('发现端口错误：', e?.message ?? e))
+      disco.bind(Number(cfg.get().discoverPort) || 7789, '0.0.0.0', () => {
+        log.info(`发现端口 udp://0.0.0.0:${Number(cfg.get().discoverPort) || 7789}`)
+      })
+    } catch (e) {
+      log.warn('发现端口起不来：', e?.message ?? e)
+    }
   }
 
   // ---------------- 心跳 ----------------
+  const hbMs = Math.max(5000, Number(cfg.get().heartbeatMs) || 25000)
   const heartbeat = setInterval(() => {
-    if (device.online) device.ping()
-  }, Math.max(5000, Number(cfg.get().heartbeatMs) || 25000))
+    if (!device.online) return
+    // BR-05/E-08：只发 ping 不看 pong，设备死机/掉电时 TCP 未超时前会一直"在线"。
+    // 判据：3 个心跳周期没有 pong（或连上后 3 个周期一个都没收到）→ 主动断开等设备重连。
+    const limit = Math.max(60000, hbMs * 3)
+    const age = device.pongAgeMs
+    if (age === null ? device.connectedMs > limit : age > limit) {
+      log.warn(`设备 ${Math.round((age ?? device.connectedMs) / 1000)}s 没有 pong（>${Math.round(limit / 1000)}s），主动断开等待重连`)
+      device.close(4001, 'pong timeout')
+      return
+    }
+    device.ping()
+  }, hbMs)
   heartbeat.unref?.()
 
   // ---------------- 显式告警：别让"没声音/没识别"表现成"设备坏了" ----------------
   const c0 = cfg.get()
-  if (c0.tts !== false && !ttsConfigured(c0)) {
-    log.warn(`TTS 没配好：engine=${c0.ttsEngine} 但缺少 ${c0.ttsEngine === 'breeze' ? 'breezeApiKey/breezeVoiceId' : '必要参数'} → 设备只会亮屏不会出声`)
+  // 2026-11-13：ttsEngine/asr 默认 auto —— 有 deepseekApiKey（或环境变量 DEEPSEEK_API_KEY）
+  // 时实际生效的是 DeepSeek；没 key 自动回退老引擎/老链路。启动日志写清"配置写的"和"实际用的"。
+  const ttsEngineNow = ttsEngineOf(c0)
+  if (c0.tts !== false) {
+    if (!ttsConfigured(c0)) {
+      const hint =
+        ttsEngineNow === 'breeze'
+          ? 'breezeApiKey/breezeVoiceId'
+          : ttsEngineNow === 'deepseek'
+            ? 'deepseekApiKey（或环境变量 DEEPSEEK_API_KEY）'
+            : '必要参数'
+      log.warn(
+        `TTS 没配好：实际 engine=${ttsEngineNow}（配置 ttsEngine=${c0.ttsEngine}）但缺少 ${hint} → 设备只会亮屏不会出声`,
+      )
+    } else {
+      log.info(
+        `TTS：${ttsEngineNow}（配置 ttsEngine=${c0.ttsEngine}` +
+          `${ttsEngineNow === 'deepseek' ? `，voice=${String(c0.ttsVoice || '').trim() || 'stella（默认）'}` : ''}）`,
+      )
+    }
   }
-  if (String(c0.asr || '') !== 'off' && !String(c0.asrServerCommand || '').trim() && !String(c0.asrCommand || '').trim()) {
-    log.warn('ASR 没有配 asrServerCommand / asrCommand：只能指望 DSH 自带的 speechToText，识别不出来时会返回 route=none')
+  // 音频编码自检（2026-11-03）：配置要 opus 但 ffmpeg 不可用时当场说清楚，
+  // 不能等第一次说话才发现"变回 PCM 了"（/api/state.audio.lastEncodeError 也会留痕）。
+  const codecPref = String(c0.audioCodec || 'auto')
+  if (codecPref === 'pcm') {
+    log.info('音频编码：强制 PCM（audioCodec=pcm）')
+  } else if (ffmpegLooksUsable(c0.ttsFfmpeg)) {
+    log.info(
+      `音频编码：${codecPref}（ffmpeg=${ffmpegLabel(c0.ttsFfmpeg)}）` +
+        `，按设备 hello.codecs 协商；自适应=${c0.audioAdaptive !== false ? '开' : '关'}，基准 ${c0.opusBitrate || 16000} bps`,
+    )
+  } else {
+    log.warn(
+      `音频编码：配置 ${codecPref} 但 ffmpeg 不可用（ttsFfmpeg=${ffmpegLabel(c0.ttsFfmpeg)}）` +
+        ' → 全程 PCM 24k；修好 ttsFfmpeg 后下一段自动恢复',
+    )
+  }
+  const asrModeNow = asrModeOf(c0)
+  if (String(c0.asr || '') !== 'off') {
+    if (asrModeNow === 'deepseek') {
+      log.info('ASR：DeepSeek 官方 /v1/tools/asr（multipart 上传 16-bit PCM WAV；429/503 退避，504 重试一次）')
+    } else if (!String(c0.asrServerCommand || '').trim() && !String(c0.asrCommand || '').trim()) {
+      log.warn(
+        `ASR（模式 ${String(c0.asr || 'auto')}）没有配 asrServerCommand / asrCommand：` +
+          '只能指望 DSH 自带的 speechToText，识别不出来时会返回 route=none',
+      )
+    }
   }
   asr.warm?.()
 

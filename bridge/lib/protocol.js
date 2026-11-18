@@ -14,6 +14,7 @@
 //
 // 契约本体在 contract.js；本文件只做编解码，不重新定义清单。
 import {
+  AUDIO,
   DEVICE,
   DOWNLINK,
   MOODS,
@@ -26,6 +27,9 @@ import {
 export { PROTOCOL_VERSION, MOODS, MOOD_CLIP, UPLINK, DOWNLINK, UNSUPPORTED }
 
 const MOOD_SET = new Set(MOODS)
+const AUDIO_CODEC_SET = new Set(AUDIO.codecs)
+const UPLINK_CODEC_SET = new Set(AUDIO.uplinkCodecs)
+const TRANSPORTS = new Set(['ble', 'wifi'])
 
 /** 设备能渲染的表情（给工具 schema 用）。 */
 export const MOOD_NAMES = [...MOODS]
@@ -134,10 +138,36 @@ export function parseDeviceMessage(raw) {
           cam: num(v.cam) ?? 0,
           w: num(v.w) ?? 0,
           h: num(v.h) ?? 0,
+          // 2026-11-03 能力协商：老固件没有这两个字段 → 缺省 = 只会 PCM，不是错误。
+          // codecs 里只认非空字符串（别让设备用奇怪类型把后续判断带偏）。
+          codecs: Array.isArray(v.codecs)
+            ? v.codecs.filter((x) => typeof x === 'string' && x.length > 0 && x.length <= 16).slice(0, 8)
+            : [],
+          opusRate: num(v.opusRate) ?? 0,
+          // 2026-11-13（BLE）：全部可选；缺省 = wifi / pcm / 0 / 空名，老固件语义完全不变。
+          transport: TRANSPORTS.has(str(v.transport)) ? str(v.transport) : 'wifi',
+          uplink: UPLINK_CODEC_SET.has(str(v.uplink)) ? str(v.uplink) : 'pcm',
+          mtu: num(v.mtu) ?? 0,
+          name: str(v.name) ?? '',
         },
       }
-    case 'pong':
-      return { ok: true, msg: { t } }
+    case 'pong': {
+      // v2.1（2026-11-03）固件可能在 pong 里带音频/链路诊断字段；**缺字段不能报错**。
+      // 只保留真的出现了的数字/字符串，缺失就是 undefined（不是 0）——否则"没有数据"
+      // 会被自适应算法误当成"缓冲 0 ms"。
+      const msg = { t }
+      const pongFields = new Set([...AUDIO.pongDiag, ...AUDIO.pongStrings])
+      for (const k of pongFields) {
+        if (AUDIO.pongStrings.includes(k)) {
+          const s = str(v[k])
+          if (s) msg[k] = s
+        } else {
+          const n = num(v[k])
+          if (n !== undefined) msg[k] = n
+        }
+      }
+      return { ok: true, msg }
+    }
     case 'image': {
       const bytes = num(v.bytes)
       if (!Number.isFinite(bytes) || bytes <= 0 || bytes > DEVICE.camera.maxBytes) {
@@ -150,13 +180,26 @@ export function parseDeviceMessage(raw) {
     }
     case 'voice': {
       const bytes = num(v.bytes)
-      const limit = DEVICE.audio.rate * 2 * DEVICE.audio.maxVoiceSeconds * 1.2 | 0
+      // 2026-11-13：voice.codec 可选（缺省 pcm）；adpcm 的字节上限比 PCM 小得多。
+      const codec = UPLINK_CODEC_SET.has(str(v.codec)) ? str(v.codec) : 'pcm'
+      const limit = codec === 'adpcm' ? AUDIO.adpcm.maxVoiceBytes : (DEVICE.audio.rate * 2 * DEVICE.audio.maxVoiceSeconds * 1.2) | 0
       if (!Number.isFinite(bytes) || bytes <= 0 || bytes > limit) {
-        return fail('BAD_BYTES', `voice.bytes 必须是 1..${limit}`)
+        return fail('BAD_BYTES', `voice.bytes 必须是 1..${limit}（codec=${codec}）`)
+      }
+      const samples = num(v.samples)
+      if (samples !== undefined && (!Number.isFinite(samples) || samples <= 0 || samples > 480000)) {
+        return fail('BAD_SAMPLES', 'voice.samples 必须是 1..480000')
       }
       return {
         ok: true,
-        msg: { t, bytes, rate: num(v.rate) ?? DEVICE.audio.rate, seq: num(v.seq) ?? 0 },
+        msg: {
+          t,
+          bytes,
+          rate: num(v.rate) ?? DEVICE.audio.rate,
+          seq: num(v.seq) ?? 0,
+          codec,
+          ...(samples !== undefined ? { samples } : {}),
+        },
       }
     }
     default: {
@@ -196,9 +239,20 @@ export function welcome() {
   return { t: 'welcome', ver: PROTOCOL_VERSION }
 }
 
-/** 大脑 → 设备：一条语音的头（后面跟二进制 PCM，最后 audio_end）。 */
-export function audioHead({ rate = DEVICE.audio.rate, bits = DEVICE.audio.bits, channels = DEVICE.audio.ch, bytes = 0, seq = 0 }) {
-  return { t: 'audio', rate, bits, ch: channels, bytes, seq }
+/**
+ * 大脑 → 设备：一条语音的头（opus 时后面跟裸 Opus 包，pcm/adpcm 时跟二进制块，最后 audio_end）。
+ *
+ * codec（2026-11-03 契约新增；2026-11-13 加 adpcm）："pcm" | "opus" | "adpcm"；
+ * 缺省/非法值一律按 pcm（老固件语义）。
+ * opus 时约定 rate=24000（设备解码输出率）、bits=16、ch=1、bytes=0（流式，长度未知）。
+ * adpcm 时可带 samples（解码后应有的 PCM 采样数，用于裁掉末块补齐的 1 个采样）。
+ */
+export function audioHead({ rate = DEVICE.audio.rate, bits = DEVICE.audio.bits, channels = DEVICE.audio.ch, bytes = 0, seq = 0, codec, samples } = {}) {
+  const c = AUDIO_CODEC_SET.has(codec) ? codec : AUDIO.defaultCodec
+  const head = { t: 'audio', rate, bits, ch: channels, bytes, seq, codec: c }
+  const n = Number(samples)
+  if (Number.isFinite(n) && n > 0) head.samples = n
+  return head
 }
 
 export function audioEnd(seq) {

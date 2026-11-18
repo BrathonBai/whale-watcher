@@ -131,3 +131,74 @@ test('guessMood 的轻规则', () => {
 test('上行清单就是 4 种，没有历史残留', () => {
   assert.deepEqual([...UPLINK], ['hello', 'pong', 'image', 'voice'])
 })
+
+// ============ 2026-11-13 BLE：新增可选字段全部向后兼容 ============
+
+test('hello：老帧缺省 wifi/pcm，新帧解析 transport/uplink/mtu/name', () => {
+  const old = parseDeviceMessage(REAL_HELLO)
+  assert.equal(old.ok, true)
+  assert.equal(old.msg.transport, 'wifi', '老固件缺省按 wifi')
+  assert.equal(old.msg.uplink, 'pcm', '老固件缺省按 pcm')
+  assert.equal(old.msg.mtu, 0)
+  assert.equal(old.msg.name, '')
+
+  const ble = parseDeviceMessage(
+    JSON.stringify({
+      t: 'hello', fw: 'hub_v2', ver: '0.3', codecs: ['pcm', 'opus', 'adpcm'], opusRate: 24000,
+      transport: 'ble', uplink: 'adpcm', mtu: 247, name: 'Jingjing-1A2B',
+    }),
+  )
+  assert.equal(ble.ok, true)
+  assert.equal(ble.msg.transport, 'ble')
+  assert.equal(ble.msg.uplink, 'adpcm')
+  assert.equal(ble.msg.mtu, 247)
+  assert.equal(ble.msg.name, 'Jingjing-1A2B')
+  assert.deepEqual(ble.msg.codecs, ['pcm', 'opus', 'adpcm'])
+
+  // 乱写的值不能带偏后续判断：transport/uplink 不合法 → 落回缺省
+  const junk = parseDeviceMessage(JSON.stringify({ t: 'hello', transport: 'zigbee', uplink: 'flac' }))
+  assert.equal(junk.msg.transport, 'wifi')
+  assert.equal(junk.msg.uplink, 'pcm')
+})
+
+test('pong：新增 transport 字符串字段，缺字段不报错', () => {
+  const bare = parseDeviceMessage('{"t":"pong"}')
+  assert.equal(bare.ok, true)
+  assert.equal(bare.msg.transport, undefined, '没带就是 undefined，不能假装成 wifi')
+  const full = parseDeviceMessage('{"t":"pong","bufMs":120,"underruns":1,"codec":"adpcm","transport":"ble","mtu":247,"txDrop":0,"rxDrop":2}')
+  assert.equal(full.ok, true)
+  assert.equal(full.msg.codec, 'adpcm')
+  assert.equal(full.msg.transport, 'ble')
+  assert.equal(full.msg.mtu, 247)
+  assert.equal(full.msg.rxDrop, 2)
+})
+
+test('voice：codec 缺省 pcm；adpcm 上限更小；samples 可选且要合法', () => {
+  const old = parseDeviceMessage('{"t":"voice","bytes":177600,"rate":24000,"seq":3}')
+  assert.equal(old.msg.codec, 'pcm')
+  assert.equal(old.msg.bytes, 177600)
+
+  const adpcm = parseDeviceMessage('{"t":"voice","bytes":120000,"codec":"adpcm","samples":240000,"seq":4}')
+  assert.equal(adpcm.ok, true)
+  assert.equal(adpcm.msg.codec, 'adpcm')
+  assert.equal(adpcm.msg.samples, 240000)
+
+  // adpcm 超过 240000 B 要被拒（上限比 PCM 小）
+  const tooBig = parseDeviceMessage('{"t":"voice","bytes":300000,"codec":"adpcm"}')
+  assert.equal(tooBig.ok, false)
+  assert.equal(tooBig.error.code, 'BAD_BYTES')
+  // PCM 的 300000 B 仍然合法（老固件 10 s 语音约 480 KB）
+  assert.equal(parseDeviceMessage('{"t":"voice","bytes":300000}').ok, true)
+
+  // 非法 codec → 落回 pcm 并按 pcm 上限判（不当成新编码）
+  assert.equal(parseDeviceMessage('{"t":"voice","bytes":120,"codec":"flac"}').msg.codec, 'pcm')
+  // samples 非法
+  assert.equal(parseDeviceMessage('{"t":"voice","bytes":120,"samples":0}').error.code, 'BAD_SAMPLES')
+})
+
+test('audioHead：adpcm + samples 进入下行头，非法 codec 仍落 pcm', () => {
+  const h = audioHead({ codec: 'adpcm', rate: 24000, bits: 16, ch: 1, bytes: 1024, seq: 7, samples: 2041 })
+  assert.deepEqual(h, { t: 'audio', rate: 24000, bits: 16, ch: 1, bytes: 1024, seq: 7, codec: 'adpcm', samples: 2041 })
+  assert.equal(audioHead({ codec: 'adpcm' }).samples, undefined)
+  assert.equal(audioHead({ codec: 'flac' }).codec, 'pcm')
+})

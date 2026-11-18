@@ -8,6 +8,11 @@
 #        llm     = 插件自己调 ctx.llm（不建会话，也没有工具）
 #
 # 不写 provider/model 时，llm 回退会自己从目录里挑第一个。
+#
+# 2026-11-02 审计（E-04/BR-26）：这里**只放接线值**（host/port/brain）。
+# 行为值（maxReplyChars、historyTurns、音色、key）不要写在这层——
+# patch 层优先级最高，写在这里会让 config.json / 面板保存的值静默失效
+# （实测 maxReplyChars 60 被这里的 240 盖住）。默认值见 lib/config.js 的 DEFAULTS。
 
 - insert:
     - id: embodied-bridge
@@ -16,5 +21,3 @@
         host: 0.0.0.0
         port: 7788
         brain: session
-        maxReplyChars: 240
-        historyTurns: 8

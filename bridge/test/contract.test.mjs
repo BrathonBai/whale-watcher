@@ -8,6 +8,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  AUDIO,
   DOWNLINK,
   ROUTES,
   TOOLS,
@@ -15,6 +16,7 @@ import {
   UPLINK,
   UNSUPPORTED,
 } from '../lib/contract.js'
+import { audioHead } from '../lib/protocol.js'
 import { createDevice } from '../lib/device.js'
 import { createTools } from '../lib/tools.js'
 
@@ -86,6 +88,41 @@ test('能力门控真的会摘掉工具（模拟一台没有 shot 的设备）',
   })
   assert.ok(!tools.some((t) => t.name === 'device_shot'), '没有 shot 下行时不该注册 device_shot')
   assert.ok(tools.some((t) => t.name === 'device_say'))
+})
+
+test('音频编码契约：codec 取值 / opus 参数 / 自适应档位与 protocol.audioHead 一致', () => {
+  assert.deepEqual([...AUDIO.codecs], ['pcm', 'opus', 'adpcm'])
+  assert.deepEqual([...AUDIO.uplinkCodecs], ['pcm', 'adpcm'])
+  assert.equal(AUDIO.defaultCodec, 'pcm')
+  assert.deepEqual({ ...AUDIO.opus }, {
+    frameMs: 20,
+    encodeRate: 16000,
+    decodeRate: 24000,
+    maxPacketBytes: 1275,
+    application: 'voip',
+  })
+  assert.deepEqual({ ...AUDIO.adpcm }, {
+    rate: 24000,
+    blockAlign: 1024,
+    headerBytes: 4,
+    samplesPerBlock: 2041,
+    bytesPerSecond: 12041,
+    maxVoiceBytes: 240000,
+  })
+  assert.equal(AUDIO.headRate, 24000, 'opus 时 audio 头 rate 必须是设备解码输出率 24000')
+  assert.deepEqual({ ...AUDIO.adaptive }, { healthyBps: 24000, mediumBps: 16000, poorBps: 8000 })
+  // audioHead 只接受契约里的 codec；缺省/乱写都按 pcm（老固件语义）
+  for (const c of AUDIO.codecs) assert.equal(audioHead({ codec: c }).codec, c)
+  assert.equal(audioHead({}).codec, 'pcm')
+  assert.equal(audioHead({ codec: 'no-such-codec' }).codec, 'pcm')
+  // adpcm 头可带 samples（解码后采样数）；非正数/NaN 不写进去
+  assert.equal(audioHead({ codec: 'adpcm', samples: 2041 }).samples, 2041)
+  assert.equal(audioHead({ codec: 'adpcm', samples: 0 }).samples, undefined)
+  // pong 诊断字段清单：缺字段不能报错，但字段名要在这份清单里
+  for (const k of ['bufMs', 'underruns', 'reconnects', 'rssi', 'codec', 'mtu', 'txDrop', 'rxDrop']) {
+    assert.ok(AUDIO.pongDiag.includes(k), `缺 ${k}`)
+  }
+  assert.ok(AUDIO.pongStrings.includes('transport'))
 })
 
 test('TOOL_NEEDS 只引用真实存在的工具与下行', () => {

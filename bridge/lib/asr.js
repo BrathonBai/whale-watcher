@@ -1,6 +1,10 @@
 // 听觉：把设备录上来的 WAV 变成文字。
 //
-// 三条路，按代价从低到高：
+// 2026-11-13 起新增 DeepSeek 官方 ASR（/v1/tools/asr，multipart 上传 WAV）：
+//   有 deepseekApiKey（或环境变量 DEEPSEEK_API_KEY）时 asr=auto 默认先走它；
+//   显式 asr=deepseek 只走它（失败不静默换引擎）；没 key 时完全回落下面三条老链路。
+//
+// 老链路，按代价从低到高：
 //   1. 常驻进程（asr_server.py + sherpa-onnx）：模型只加载一次，之后每句 ~90 ms
 //   2. 单次命令（asr_sherpa.py）：每次起 python + 加载模型，~2.5 s
 //   3. DSH 自带的 speechToText（如果这个 profile 里装了语音包）
@@ -12,6 +16,8 @@
 import { spawn } from 'node:child_process'
 import { exec } from 'node:child_process'
 import fs from 'node:fs'
+import { transcribeDeepseek } from './deepseek.js'
+import { asrModeOf, deepseekApiKeyOf, deepseekBaseUrlOf } from './config.js'
 
 /** 从识别器输出里取干净的一行文本（去掉 OK\t、提示、空行）。 */
 export function cleanAsrOutput(raw) {
@@ -27,7 +33,7 @@ export function cleanAsrOutput(raw) {
   return last.slice(0, 400)
 }
 
-export function createAsr({ cfg, log, dsh }) {
+export function createAsr({ cfg, log, dsh, fetchImpl = null }) {
   let proc = null
   let ready = null
   let buf = ''
@@ -168,14 +174,20 @@ export function createAsr({ cfg, log, dsh }) {
       return lastReason
     },
     /**
-     * @returns {Promise<{text:string, route:'server'|'command'|'dsh'|'none', ms:number}>}
+     * @param {string} wavPath 落盘的 WAV（finishVoice 写的 44 B 头 + 24k/16bit/mono PCM）
+     * @param {{pcm?:Buffer, rate?:number}} [extra] 上行 PCM（DeepSeek 路由直接补 WAV 头上传，
+     *   不必再读盘）；老链路仍然用 wavPath。
+     * @returns {Promise<{text:string, route:'deepseek'|'server'|'command'|'dsh'|'none', ms:number}>}
      */
-    async transcribe(wavPath) {
+    async transcribe(wavPath, extra = {}) {
       const t0 = Date.now()
-      const mode = String(cfg.get().asr || 'auto')
+      const c = cfg.get()
+      const rawMode = String(c.asr || 'auto')
+      // auto + 有 deepseekApiKey → deepseek（旧链路仍兜底）；没 key → 原来的 auto。
+      const mode = asrModeOf(c)
       lastReason = ''
       const reasons = []
-      if (mode === 'off') {
+      if (rawMode === 'off') {
         lastReason = 'asr=off（配置里关掉了识别）'
         return { text: '', route: 'none', ms: 0 }
       }
@@ -195,8 +207,33 @@ export function createAsr({ cfg, log, dsh }) {
         return done('', 'none')
       }
 
-      // 1) 常驻
-      if (mode === 'auto' || mode === 'server') {
+      // 0) DeepSeek 官方 ASR（2026-11-13）：multipart 上传 16-bit PCM WAV。
+      if (mode === 'deepseek') {
+        try {
+          const r = await transcribeDeepseek(
+            extra.pcm ? { pcm: extra.pcm, rate: Number(extra.rate) || 24000 } : wavPath,
+            {
+              apiKey: deepseekApiKeyOf(c.deepseekApiKey),
+              baseUrl: deepseekBaseUrlOf(c.deepseekBaseUrl),
+              timeoutMs: c.deepseekTimeoutMs,
+              maxRetries: c.deepseekMaxRetries,
+              backoffMs: c.deepseekRetryBackoffMs,
+              fetchImpl,
+              log,
+            },
+          )
+          if (r.text) return done(r.text, 'deepseek')
+          reasons.push('DeepSeek ASR 返回空')
+        } catch (e) {
+          reasons.push('DeepSeek ASR 失败：' + (e?.message ?? e))
+          log.warn('DeepSeek ASR 失败：', e?.message ?? e)
+        }
+        // 显式 asr=deepseek：失败就显式失败，不偷偷换引擎（和 TTS 同一条原则）。
+        if (rawMode === 'deepseek') return done('', 'none')
+      }
+
+      // 1) 常驻（老链路）
+      if (rawMode === 'auto' || rawMode === 'server') {
         if (await ensureServer()) {
           try {
             const text = await askServer(wavPath)
@@ -211,18 +248,18 @@ export function createAsr({ cfg, log, dsh }) {
         }
       }
       // 2) DSH 自带
-      if (mode === 'auto' || mode === 'dsh') {
+      if (rawMode === 'auto' || rawMode === 'dsh') {
         const text = await viaDsh(wavPath)
         if (text) return done(text, 'dsh')
         reasons.push('DSH speechToText 不可用或返回空')
       }
       // 3) 单次命令
       const cmd = String(cfg.get().asrCommand || '').trim()
-      if (cmd && (mode === 'auto' || mode === 'command')) {
+      if (cmd && (rawMode === 'auto' || rawMode === 'command')) {
         const text = await runOnce(cmd, wavPath)
         if (text) return done(text, 'command')
         reasons.push('单次命令没输出')
-      } else if (mode === 'auto' || mode === 'command') {
+      } else if (rawMode === 'auto' || rawMode === 'command') {
         reasons.push('没有 asrCommand')
       }
       return done('', 'none')

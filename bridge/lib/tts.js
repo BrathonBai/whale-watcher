@@ -105,11 +105,18 @@ export async function synthesize(text, { voice = '', rate = 0, volume = 90 } = {
   }
 }
 
-/** 把 PCM 切成设备端能吃的块（4KB，对齐到样本）。 */
+/** 把 PCM 切成设备端能吃的块（4KB，对齐到样本；末块也必须是偶数字节）。 */
 export function chunkPcm(pcm, chunkBytes = 4096) {
   const even = chunkBytes - (chunkBytes % 2)
   const out = []
-  for (let i = 0; i < pcm.length; i += even) out.push(pcm.subarray(i, Math.min(i + even, pcm.length)))
+  for (let i = 0; i < pcm.length; i += even) {
+    const end = Math.min(i + even, pcm.length)
+    // BR-14：末块如果落在奇数字节（WAV data 长度奇数），设备端会丢 1 B；
+    // 这里直接截到偶数，保证"每一帧都是整采样"这个不变量在合成侧就成立。
+    const n = (end - i) & ~1
+    if (n > 0) out.push(pcm.subarray(i, i + n))
+    if (n !== end - i) break
+  }
   return out
 }
 

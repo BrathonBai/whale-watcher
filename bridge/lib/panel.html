@@ -70,6 +70,7 @@
   <section>
     <h2>设备能力（契约）</h2>
     <div class="kv" id="caps">—</div>
+    <p class="kv" id="audio-hint" style="margin:10px 0 0">—</p>
   </section>
 
   <section>
@@ -118,11 +119,28 @@ async function tick() {
       `下行：<b>${(cap.downlink||[]).join(' / ')}</b><br>` +
       `不具备：<b class="bad">${Object.keys(cap.unsupported||{}).join(' / ')}</b><br>` +
       `采集：<b>${s.device.collecting ? s.device.collecting.kind + ' ' + s.device.collecting.got + '/' + s.device.collecting.bytes : '空闲'}</b>`;
+    // 音频编码/自适应：用 textContent 而不是 innerHTML —— reason 里可能带设备自报的 codecs 字符串，
+    // 同网段伪设备可借它在面板注入 HTML（审计 BR-36 同一类问题）。
+    if (s.audio) {
+      const a = s.audio;
+      const parts = [
+        String(a.effective || '?').toUpperCase(),
+        a.bitrate ? `${a.bitrate} bps` : 'PCM 24k',
+        `档位 ${a.tier || '?'}`,
+        a.adaptive ? '自适应开' : '自适应关',
+      ];
+      $('audio-hint').textContent =
+        `音频：${parts.join(' · ')}` +
+        (a.reason ? `（${a.reason}）` : '') +
+        (a.lastEncodeError ? ` ⚠ ${a.lastEncodeError}` : '');
+    }
     const cur = s.config || {};
     if (document.activeElement !== $('cfg')) {
       $('cfg').value = JSON.stringify({
         brain: cur.brain, tts: cur.tts, ttsEngine: cur.ttsEngine, maxReplyChars: cur.maxReplyChars,
         filler: cur.filler, asr: cur.asr,
+        // 音频编码：auto/opus/pcm + 基准码率 + 自适应（改完立即生效，下一段回复按新配置选档）
+        audioCodec: cur.audioCodec, opusBitrate: cur.opusBitrate, audioAdaptive: cur.audioAdaptive,
       }, null, 2);
     }
     const ev = await api(`/events?after=${lastSeq}&limit=30`);
@@ -132,7 +150,9 @@ async function tick() {
       if (ul.dataset.fresh !== '1') { ul.innerHTML = ''; ul.dataset.fresh = '1'; }
       for (const e of ev.events.slice(-12)) {
         const li = document.createElement('li');
-        li.innerHTML = `<b>${e.kind}</b> ${new Date(e.at).toLocaleTimeString()} ${JSON.stringify(e.msg).slice(0,90)}`;
+        // textContent 而不是 innerHTML：hello 的 fw/board/ver 是设备可控字符串，
+        // 同网段伪设备可借它在面板里注入 HTML（审计 BR-36）。
+        li.textContent = `${e.kind} ${new Date(e.at).toLocaleTimeString()} ${JSON.stringify(e.msg).slice(0, 90)}`;
         ul.prepend(li);
       }
       while (ul.children.length > 40) ul.lastChild.remove();

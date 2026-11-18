@@ -24,15 +24,74 @@
 
 export const PROTOCOL_VERSION = 2
 
-/** 设备自报的身份（hello 原文）。ver 是**字符串**，不是数字。 */
+/**
+ * 设备自报的身份（hello 原文）。ver 是**字符串**，不是数字。
+ *
+ * 2026-11-03 起 hello 可能额外带（老固件没有，缺字段必须能正常工作）：
+ *   codecs:   ["pcm","opus"]  设备支持的音频编码（缺省 = 只有 pcm）
+ *   opusRate: 16000          设备侧 Opus 解码采样率（协商提示，下行 audio 头仍按契约填 24000）
+ *
+ * 2026-11-13（BLE 直连手机）再新增（仍然全部可选）：
+ *   transport: "ble"|"wifi"  当前生效链路
+ *   uplink:    "pcm"|"adpcm" 本会话 voice 二进制用的编码（默认 pcm）
+ *   mtu:       int           BLE MTU（wifi 时 0/省略）
+ *   name:      string        显示名（如 "Jingjing-1A2B"）
+ */
 export const DEVICE = Object.freeze({
   fw: 'hub_v2',
   board: 'watcher',
-  ver: '0.2',
+  ver: '0.3',
   camera: { w: 240, h: 240, maxBytes: 4 * 1024 * 1024, periodMs: 8000 },
   audio: { rate: 24000, bits: 16, ch: 1, maxVoiceSeconds: 10 },
   panel: { w: 412, h: 412 },
   clips: { fps: 10, idle: [160, 180], look: [156, 180], wave: [137, 180] },
+})
+
+/**
+ * 音频编码协商契约（2026-11-03 与固件线约定，字段名不要改）：
+ *   · 设备 hello 可选 codecs（["pcm","opus"]）与 opusRate；
+ *   · 下行 audio 头新增 codec: "pcm" | "opus"（缺省 = pcm）；
+ *   · opus 时每个 WS 二进制帧 = 一个裸 Opus 包（20 ms，16 kHz mono，无长度前缀），
+ *     audio 头填 rate=24000（设备解码输出率）、bits=16、ch=1、bytes=0、seq 递增；
+ *   · audio_end 语义不变；
+ *   · pong 上行可选带 bufMs/underruns/reconnects/rssi/codec（老设备没有 → 不能报错）。
+ */
+export const AUDIO = Object.freeze({
+  /** audio 头 codec 字段的合法取值。 */
+  codecs: ['pcm', 'opus', 'adpcm'],
+  /** voice 头 codec 字段的合法取值（上行编码）。 */
+  uplinkCodecs: ['pcm', 'adpcm'],
+  /** 缺省编码（audio/voice 头没带 codec 时按这个解释）。 */
+  defaultCodec: 'pcm',
+  /** opus 下行的固定参数（与固件 micro-opus 解码侧对齐）。 */
+  opus: Object.freeze({
+    frameMs: 20,
+    encodeRate: 16000,
+    decodeRate: 24000,
+    maxPacketBytes: 1275,
+    application: 'voip',
+  }),
+  /**
+   * ADPCM（BLE 链路默认编码）参数。块格式与 ffmpeg adpcm_ima_wav 同构，
+   * 编解码在 lib/adpcm.js；这里只放跨模块引用的常量（test/adpcm.test.mjs 会比对两处一致）。
+   */
+  adpcm: Object.freeze({
+    rate: 24000,
+    blockAlign: 1024,
+    headerBytes: 4,
+    samplesPerBlock: 2041,
+    bytesPerSecond: 12041,
+    /** voice.bytes 上限（20 s 余量）。 */
+    maxVoiceBytes: 240000,
+  }),
+  /** 自适应档位（bps）：健康 / 中等 / 差。 */
+  adaptive: Object.freeze({ healthyBps: 24000, mediumBps: 16000, poorBps: 8000 }),
+  /** opus 时 audio 头的 rate 字段（设备解码输出率，不是编码率）。 */
+  headRate: 24000,
+  /** pong 里可能出现的**数字**诊断字段（缺字段不能报错）。 */
+  pongDiag: Object.freeze(['bufMs', 'underruns', 'reconnects', 'rssi', 'codec', 'mtu', 'txDrop', 'rxDrop']),
+  /** pong 里可能出现的**字符串**诊断字段。 */
+  pongStrings: Object.freeze(['codec', 'transport']),
 })
 
 /** 设备 → 桥。只有这四种；其它一律 UNSUPPORTED_UPLINK。 */
@@ -117,7 +176,7 @@ export const TOOL_NEEDS = Object.freeze({
 
 /** HTTP 路由：只读 vs 动作（动作要令牌或本机）。http.js 从这里派生。 */
 export const ROUTES = Object.freeze({
-  read: ['/health', '/api/state', '/events', '/commands', '/moods', '/panel', '/', '/shot.jpg'],
+  read: ['/health', '/api/state', '/api/diag', '/events', '/commands', '/moods', '/panel', '/', '/shot.jpg'],
   act: ['/say', '/api/speak', '/api/face', '/shot', '/api/config', '/api/linktest'],
   /** v2 做不到、但历史上存在过的接口：保留路径，返回 501 + 原因，不静默 404。 */
   gone: {
@@ -141,6 +200,9 @@ export function summarize() {
     ver: DEVICE.ver,
     uplink: [...UPLINK],
     downlink: [...DOWNLINK],
+    // 2026-11-13（BLE）：上下行音频编码能力，/health 与 /capabilities 直接展示。
+    uplinkCodecs: [...AUDIO.uplinkCodecs],
+    downlinkCodecs: [...AUDIO.codecs],
     unsupported: { ...UNSUPPORTED },
   }
 }

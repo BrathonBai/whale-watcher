@@ -58,6 +58,89 @@ v0.3 的做法：**设备没有的，桥就不假装有。**
 - 下行：`welcome` `ping` `say` `face` `audio` `audio_end` `shot`
 - 完整表格、字段、固件出处：[`docs/协议-v2-契约.md`](../docs/协议-v2-契约.md)
 
+## BLE 直连手机（2026-11-13）
+
+设备除了 WiFi 连 PC，还可以通过 **BLE** 连手机 dsh-Go（手机 App 当透明网关，桥在手机引擎里）。
+
+- 线上协议**完全不变**；只是在 `hello` 里多几个可选字段：`transport`（ble/wifi）、`uplink`
+  （pcm/adpcm）、`mtu`、`name`，`pong` 里多 `transport/mtu/txDrop/rxDrop`。
+- **上行语音用 IMA ADPCM 4:1**（24 kHz，1024 B/块 = 2041 采样 = 85 ms，约 12 KB/s），桥在
+  `finishVoice` 里解回 PCM 再写 WAV → ASR 不用改。编解码：`lib/adpcm.js`（与 ffmpeg
+  `adpcm_ima_wav` 同构，解码结果与 ffmpeg 参考实现逐采样 0 差异）。
+- **下行语音**：`audioCodec=auto` 时，设备支持 adpcm 且本机没有 ffmpeg（典型的手机引擎
+  环境）→ 用 ADPCM 下发；PC 有 ffmpeg 时仍用 Opus（码率更低、音质更好）。显式值：
+  `pcm | opus | adpcm`；设备不支持所选编码时显式回退 PCM 并告警。
+- **wsToken**（手机端必开）：`/device` 需要 `?token=<wsToken>`，否则 401。手机 loopback 上
+  任何 App 都能连 127.0.0.1，没有这道口令等于把设备控制面开放给全机。PC 默认空串 = 行为不变。
+- **discover**（默认开）：`discover:false` 时不绑 UDP 7789（手机端没有"局域网找桥"场景）。
+- 手机端注入方式与默认配置见 `dsh-go-ble/`（guest 插件，不改运行时）。
+
+## 语音：DeepSeek 官方 TTS / ASR（2026-11-13）
+
+TTS 与 ASR 现在**默认走 DeepSeek 官方 API**（同一把 key，`Authorization: Bearer`，base
+`https://api.deepseek.com`）。没配 key 时自动回退原来的 edge/sapi/breeze 与 DSH `speechToText`/命令
+链路——老配置一行不改、老行为零回归，老段落原样保留（见下文「TTS 端点参数」「音频编码」）。
+
+### 配置键（`lib/config.js` DEFAULTS ← `config.json` ← `cordis.patch.yml`）
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `deepseekApiKey` | 空（读环境变量 `DEEPSEEK_API_KEY`） | secret；空 = 未配置 → `auto` 回退老引擎 |
+| `deepseekBaseUrl` | `https://api.deepseek.com` | 也可用环境变量 `DEEPSEEK_BASE_URL` 覆盖（代理/自测） |
+| `ttsEngine` | `auto` | auto：有 key → `deepseek`，否则 `edge`；显式 `deepseek/edge/sapi/breeze` 永远优先 |
+| `ttsVoice` | 空 → `stella` | DeepSeek：`stella`（默认女声）/ `tide`（男声）；edge/sapi 音色名照旧 |
+| `asr` | `auto` | auto：有 key 先 DeepSeek（失败/为空再走老链路）；显式 `deepseek/dsh/command/server/off` |
+| `deepseekTimeoutMs` | `30000` | 单次 HTTP 超时（TTS 整段合成 / ASR 上传识别） |
+| `deepseekMaxRetries` | `2` | 429（并发）/ 503（忙）指数退避重试次数；ASR 504 固定只额外重试 1 次 |
+| `deepseekRetryBackoffMs` | `800` | 退避基数（指数翻倍；优先服务端 `retry-after`，单次上限 8–15 s） |
+
+最小配置（写进 profile 的 `cordis.patch.yml`，改完**完整重启 DSH**）：
+
+```yaml
+- insert:
+    - id: embodied-bridge
+      name: dsh-embodied-bridge
+      config:
+        deepseekApiKey: sk-...
+        # 可选：ttsVoice: tide / ttsEngine: deepseek / asr: deepseek
+```
+
+也可以只设环境变量 `DEEPSEEK_API_KEY`（key 不落 config.json 也能用；`/health` 里照样打码）。
+
+### 切换与强制回退
+
+- 用 DeepSeek：配 key（或环境变量），`ttsEngine`/`asr` 留 `auto`。
+- **强制回退老引擎**（key 还在也不走 DeepSeek）：`ttsEngine: "edge"`（或 `sapi`/`breeze`）、
+  `asr: "dsh"` / `"command"` / `"server"`——显式值永远优先。
+- 显式写 `ttsEngine: "deepseek"` / `asr: "deepseek"` 但没 key：**显式失败并告警**，
+  不会静默换引擎（换声音是事故）。`/health` 的 `tts.engine` 是实际生效值、`tts.preference`
+  是配置里写的值，两个都能看；`tts.configured=false` 即"只亮屏不出声"。
+
+### TTS 下行（固定 PCM）
+
+- `POST {base}/v1/tools/tts`，body `{text, voice_id, format:"pcm", filter_markdown:true}`；
+  整段 HTTP 拿回 **24 kHz / 16 bit / mono 裸 PCM**（回复 ≤240 字，不用 WebSocket 流式——一次拿全更简单、
+  长度已知、`audio_end` 对账更可靠）。
+- 下行**固定 `codec:"pcm"` 直通**：即使 hello 协商出 opus/adpcm，DeepSeek 段也不编码
+  （`/api/diag.audio.effective` 会如实显示 pcm 并给出回退原因）。`audio` 头
+  `rate=24000 / bits=16 / ch=1 / bytes=总长度`；分块用 `wsFrameBytes`（默认 4096；BLE 链路按
+  hello.mtu 的 `mtu-3` 收窄，且每帧偶数）；发完做字节对账，再发 `audio_end`。
+- 本地台词包（`voicecache`）照旧：同一句第二次命中就不出网、不重复计费；键里含 engine/音色。
+- 失败/截断（content-length 对不上、PCM 奇数字节、超时）→ **不发 audio 头、绝不把半截当成功**；
+  文本照常上屏，`/health.tts.lastError` 有原因。
+
+### ASR 上行
+
+- 设备 `voice`（pcm 或 ADPCM）按现方式解回 24 kHz/16 bit/mono PCM → **44 字节 WAV 头** →
+  `POST {base}/v1/tools/asr` multipart（字段 `file`，`audio/wav`）。只用 Node 内置
+  `fetch`+`FormData`+`Blob`，**没有新增 npm 依赖**。
+- 本地预检：WAV ≤ **8 MiB**、时长 ≤ **120 s**（官方限制；设备单段最多 20 s），超了直接报清原因、不上传。
+- 错误映射：400 格式 / 408 上传超时 / 413 过大 / 429 并发 / 503 忙 / 504 识别超时；
+  429/503 退避重试，504 只额外重试一次；空文本带 `request_id` 写进 `asr.lastReason`（`/health` 可见）。
+- 日志带 `request_id`、耗时、字符数/音频时长/字节数；**不打印 API key**。
+- 老链路（DSH `speechToText` / `asrServerCommand` / `asrCommand`）**原样保留**，
+  作为无 key 或显式模式下的回退；`route` 会标明这次走的是 `deepseek`/`server`/`dsh`/`command`。
+
 ## 存储与保留（2026-10-31 起）
 
 拍照已改成**只按需**：固件不再 8 秒周期采样，也不在开始录音时顺手拍一张
@@ -78,21 +161,37 @@ v0.3 的做法：**设备没有的，桥就不假装有。**
 
 ```powershell
 cd ~/.dsh/plugins/dsh-embodied-bridge     # 或本工作区的 bridge/
-node test/protocol.test.mjs   # 11 条：真实抓帧、旧消息必须被拒、构造器都在契约内
-node test/ws.test.mjs         #  5 条：RFC 6455 编解码
-node test/speech.test.mjs     # 10 条：PCM 只发偶数字节帧（错位=噪声）+ 预缓冲闸门 5 条
-node test/retention.test.mjs  #  5 条：保留策略只删旧的、不误删别的文件
-node test/contract.test.mjs   #  8 条：契约哨兵（含文档一致性）
-node test/session.mjs         # 会话模式（假 DSH 宿主）
-node test/loop.mjs            # 端到端（假设备走真 WebSocket）
-node test/audit.mjs           # 静态+动态审计：配置键/工具/路由/服务/面板/命令目录
-node test/tts-smoke.mjs       # 真调 Breeze、真数设备收到的 PCM（需 BREEZE_API_KEY，没有就跳过）
-node test/prebuf-live.mjs     # 真调 Breeze + 假设备：量起播后的"缓冲领先量"，证明不卡顿（需 key）
+node test/protocol.test.mjs    # 11 条：真实抓帧、旧消息必须被拒、构造器都在契约内
+node test/ws.test.mjs          #  5 条：RFC 6455 编解码
+node test/speech.test.mjs      # 10 条：PCM 只发偶数字节帧（错位=噪声）+ 预缓冲闸门
+node test/speech-queue.test.mjs #  2 条：多句回复必须逐句发完（2026-11-02 回归）
+node test/deepseek-speech.test.mjs # 20 条：DeepSeek TTS/ASR（2026-11-13，全 mock fetch 不出网）
+node test/retention.test.mjs   #  6 条：保留策略只删旧的、不误删别的文件、imageKeep=0 至少留最新
+node test/contract.test.mjs    #  9 条：契约哨兵（含文档一致性）
+node test/adpcm.test.mjs       #  7 条：ADPCM 与 ffmpeg 参考实现逐采样一致、C/JS 向量、往返 SNR、短块（2026-11-13）
+node test/opus.test.mjs        # 26 条：Ogg 拆包/lacing/协商回退/自适应阈值/缓存版本化（2026-11-03）
+node test/session.mjs          # 会话模式（假 DSH 宿主）
+node test/loop.mjs             # 端到端（假设备走真 WebSocket）
+node test/loop-ble.mjs         # 端到端 BLE 语义（2026-11-13）：wsToken 401、transport/uplink、ADPCM 上行→WAV、pong 新诊断
+node test/audit.mjs            # 静态+动态审计：配置键/工具/路由/服务/面板/命令目录
+node test/tts-smoke.mjs        # 真调 Breeze、真数设备收到的 PCM（需 BREEZE_API_KEY，没有就跳过）
+node test/prebuf-live.mjs      # 真调 Breeze + 假设备：量起播后的"缓冲领先量"，证明不卡顿（需 key）
 ```
 
+> 一条命令：`npm test`（不含两个"真调 Breeze"的 smoke，那俩要 key 且会出网）。
 > 不要用 `node --test`：它给每个文件派生子进程，受限环境下会 `spawn EPERM`。
 
-### TTS 端点参数（2026-10-31 实测）
+### 音频编码（2026-11-03）
+
+默认 `audioCodec=auto`：设备 hello 里带 `codecs:["pcm","opus"]` 才走 Opus（ffmpeg/libopus 编码，
+每 WS 帧一个 20ms 裸包）；否则/编码失败显式回退 PCM。档位由 `audio_profile.js` 按 pong 的
+`bufMs/underruns` 自适应（24k/16k/8k→PCM），状态在 `/api/diag.audio`，理由可读。
+强制回退：`POST /api/config {"audioCodec":"pcm"}`。
+
+> 注：DeepSeek TTS 段固定 PCM 24k 直通（见上节），不参与这里的 opus/adpcm 协商——
+> 协商快照只影响本地引擎（edge/sapi/breeze）的编码路径。
+
+### TTS 端点参数（Breeze 回退路径，2026-10-31 实测）
 
 `output_format` 只接受 **`wav` / `mp3` / `pcm`**；写 `wav_24000` 会被服务端回
 `404 RESOURCE_NOT_FOUND "Voice not found"`（误导性错误，音色其实存在）。
@@ -142,3 +241,6 @@ Invoke-RestMethod 'http://127.0.0.1:7788/api/linktest?seconds=3' -Method Post
 **音色 / API key / 模型只写 patch 层**；改完必须**完整重启 DSH**（热重载不会重解析 patch 层，
 表现为"改了没生效、重启后回退"）。`/health` 里的 `config` 就是**运行时真正生效**的值——
 它和 patch 不一致时，以 `/health` 为准，说明 patch 没进去。
+
+例外：`deepseekApiKey` / `breezeApiKey` 还可以走环境变量（`DEEPSEEK_API_KEY` / `BREEZE_API_KEY`），
+`deepseekBaseUrl` 可走 `DEEPSEEK_BASE_URL`——排障时用环境变量临时换 key/base 不必改 patch。

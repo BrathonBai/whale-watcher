@@ -1,0 +1,89 @@
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_ESPTOOLPY_FLASHSIZE_32MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_FREERTOS_HZ=1000
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_CODEC_ES7243E_SUPPORT=y
+CONFIG_CODEC_ES8311_SUPPORT=y
+
+# 分区表与设备实测布局一致（12MB x 2 个 app 槽），见 partitions.csv
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# BSP/触摸/扩展器同时用旧 i2c 驱动、esp_codec_dev 初始化新 i2c 主驱动；IDF 5.5 默认会
+# 检查两者混用并 abort（i2c: CONFLICT!）。旧工程 sdkconfig 一直开着这个跳过项。
+CONFIG_I2C_SKIP_LEGACY_CONFLICT_CHECK=y
+
+# 渲染是硬实时（20fps，204x204 局部刷新）
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# 任务多（ui / console / ble / mic / key），主任务栈给够
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+CONFIG_FREERTOS_TIMER_TASK_STACK_DEPTH=3072
+
+# ---------------------------------------------------------------------------
+# 2026-11-03 · Opus 下行解码（vendored components/micro-opus 0.4.1）
+# 说明：这些在 esp32s3 上就是 Kconfig 默认值；显式固定防止将来改目标/关默认时静默漂移。
+# 伪栈/解码器状态放 PSRAM（8MB，本轮 clip 改零拷贝后约 6MB 空闲）；
+# 伪栈是首次解码时懒分配的，PSRAM 不足时 Init 预检会回退 PCM（见 audio_dec.cc）。
+# ---------------------------------------------------------------------------
+CONFIG_OPUS_THREADSAFE_PSEUDOSTACK=y
+CONFIG_OPUS_PSEUDOSTACK_SIZE=120000
+CONFIG_OPUS_STATE_PREFER_PSRAM=y
+CONFIG_OPUS_PSEUDOSTACK_PREFER_PSRAM=y
+CONFIG_OPUS_OGG_DECODER_PREFER_PSRAM=y
+CONFIG_OPUS_FLOATING_POINT=y
+CONFIG_OPUS_ENABLE_XTENSA_OPTIMIZATIONS=y
+
+# ---------------------------------------------------------------------------
+# 2026-11-03 · core dump 落 flash（分区见 partitions.csv 的 coredump 128KB）
+# 只改本文件不生效：构建目录的 sdkconfig 里已有 ENABLE_TO_NONE=y，需要在构建副本一并改。
+# 内存账：coredump 专用栈 1792 B 内部 RAM；LOGS=n 省 ~5 KB（需要串口摘要时改 y 并真机验证）。
+# ---------------------------------------------------------------------------
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
+CONFIG_ESP_COREDUMP_CHECK_BOOT=y
+CONFIG_ESP_COREDUMP_LOGS=n
+CONFIG_ESP_COREDUMP_STACK_SIZE=1792
+
+# ---------------------------------------------------------------------------
+# 2026-11-13 · BLE 直连（NimBLE peripheral，spec §5.2）
+# 只做外设：关掉 central/observer/broadcaster（广播能力由 peripheral 角色提供，
+# NIMBLE_BLE_ADVERTISE = BROADCASTER || PERIPHERAL），省 RAM/代码。
+# MTU 247（payload 244）；单连接；host 任务栈 4096；绑定信息持久化到 NVS。
+# 控制器活动数从默认 6 降到 2（1 连接 + 1 广播），每活动 ~828 B → 省 ~3.3 KB 内部 RAM。
+#
+# 注意（与 spec §5.2 的差异，S3 没有 BTDM）：
+#   · CONFIG_BTDM_CTRL_BLE_MAX_CONN 是 ESP32 的 BTDM 符号，S3 用 CONFIG_BT_CTRL_BLE_MAX_ACT；
+#   · CONFIG_BT_CTRL_MODE_EFF 是控制器内部派生 int（不可手写 =y），不写。
+# 内存账：NimBLE host+controller 约 40–60 KB 内部 RAM；构建后看
+#   idf.py size-components 的 libbt/libnimble 段，以及启动日志的 [mem]。
+# ---------------------------------------------------------------------------
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_BLUEDROID_ENABLED=n
+CONFIG_BT_CONTROLLER_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=n
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_CTRL_BLE_MAX_ACT=2
+
+# ---------------------------------------------------------------------------
+# 2026-11-13 v0.4 · 取消 WiFi：设备只保留 BLE，不再初始化 WiFi/WS。
+# 下面这段是 BLE 第一版（BLE+WiFi 双栈）留下的内存配置；WiFi 已从代码/构建中移除，
+# 这些 WiFi 缓冲配置不再需要，保留在此仅作历史说明（写入也不会生效）。
+# 仍保留的 BLE 配置见上方 NimBLE 段；运行期内部 RAM 以刷机后 [mem] 日志为准。
+# ---------------------------------------------------------------------------
+

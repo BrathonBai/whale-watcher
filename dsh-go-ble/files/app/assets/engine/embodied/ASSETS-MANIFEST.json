@@ -1,0 +1,120 @@
+{
+ "format": "embodied-plugin-assets/v1",
+ "source": "bridge/",
+ "package": {
+  "name": "dsh-embodied-bridge",
+  "version": "0.3.0"
+ },
+ "files": [
+  {
+   "path": "package.json",
+   "bytes": 1071,
+   "sha256": "d9932b9e3c16f9f269b2c83dc77e79fed8a0dd391543535652430e08b058bd8b"
+  },
+  {
+   "path": "lib/adpcm.js",
+   "bytes": 8269,
+   "sha256": "d6b7c9140f474b5a387a2b9d981c0169daa4f060dbf349dda1232091239034f5"
+  },
+  {
+   "path": "lib/asr.js",
+   "bytes": 9806,
+   "sha256": "3bf36a251ead9fb4057cd37d7b83ea3ea2c254dc1da98f0d5427b9780c1a316b"
+  },
+  {
+   "path": "lib/audio_profile.js",
+   "bytes": 22146,
+   "sha256": "fa760dd06cf56c89fcd5f2083641739d58c0373072c27350bcd2fc0069cdc96d"
+  },
+  {
+   "path": "lib/brain.js",
+   "bytes": 15545,
+   "sha256": "accb0b9a198e64732a4035a761ab8f1ba3d06e5028997b0b38323b663af7b2bd"
+  },
+  {
+   "path": "lib/config.js",
+   "bytes": 12109,
+   "sha256": "4c7fb2542dcf62181c104c44204c7765ca5a750aa87f79e496149263115fc66e"
+  },
+  {
+   "path": "lib/contract.js",
+   "bytes": 8340,
+   "sha256": "85171023accaba40fae5d0ef6db3b9b03f8d58f16b57bb9580fab0308c795bdf"
+  },
+  {
+   "path": "lib/deepseek.js",
+   "bytes": 22803,
+   "sha256": "5d31135ddb3fa510bd289745e928ca99d53d253f788fd492013133503071c08d"
+  },
+  {
+   "path": "lib/device.js",
+   "bytes": 12606,
+   "sha256": "08c9d74034054d0d4c401cf684bed32eac73555e503733364ce62109221ac3b6"
+  },
+  {
+   "path": "lib/http.js",
+   "bytes": 16105,
+   "sha256": "5c7f2cb72653f5fa173ed867a7ebf9cc3a958bd3fcb6db3ae4b59dd3d083c1bd"
+  },
+  {
+   "path": "lib/index.js",
+   "bytes": 25565,
+   "sha256": "9156bf9f167be321e77e22fed167e6d77bfea6ca948c44e1945e4eda84e7af4e"
+  },
+  {
+   "path": "lib/opus_encode.js",
+   "bytes": 17240,
+   "sha256": "e8399194792d5d252b18c3e7b21e6dde94f8b0cc873570c4479aa963b9f9fb37"
+  },
+  {
+   "path": "lib/panel.html",
+   "bytes": 9053,
+   "sha256": "221b73adb53ee5113e618d8f93325b6f90a83e5738986137ffcf7051aab96416"
+  },
+  {
+   "path": "lib/protocol.js",
+   "bytes": 10626,
+   "sha256": "0783fdd6cea1a5ec8de9f0a0b2b4f4a6d1f081b03ae708a1a4118c27448ce775"
+  },
+  {
+   "path": "lib/retention.js",
+   "bytes": 2926,
+   "sha256": "e6772c6d06c6946d41cf55611e33b658e4a8d1e13fc468ddff971b0f2b10adc1"
+  },
+  {
+   "path": "lib/speech.js",
+   "bytes": 35328,
+   "sha256": "5702b80d093eb84987ee3ef2ebc9fa323bf15760ebcba10d3527a6e435277f3c"
+  },
+  {
+   "path": "lib/tools.js",
+   "bytes": 8980,
+   "sha256": "3c9043be80ed75737df558fdaa95635603ba6fc5f7700809d9dec5d8e9d9db26"
+  },
+  {
+   "path": "lib/tts.js",
+   "bytes": 4892,
+   "sha256": "f09cd65b54f43c0b648152b636d28dee8f6cd34fa38a81668a888a978004df1a"
+  },
+  {
+   "path": "lib/tts_breeze.js",
+   "bytes": 11210,
+   "sha256": "8832e8fa59bb585effd2d9424cbd063692aeed2c4d8d8288b1db380d66868a16"
+  },
+  {
+   "path": "lib/tts_edge.js",
+   "bytes": 3864,
+   "sha256": "c5d30e56aa25bdbba8a561b22e9b0e601aefb54b6d68a7c58abac30c74e20963"
+  },
+  {
+   "path": "lib/voicecache.js",
+   "bytes": 8121,
+   "sha256": "5b715ffd55179812c1ac7d558418c4b64a0a68fb5021adaabc12d48323e4a3ca"
+  },
+  {
+   "path": "lib/ws.js",
+   "bytes": 8742,
+   "sha256": "f7b5fbec385c055884968a559cafc37eaee7fd865c8ff84dec042ce280d91425"
+  }
+ ]
+}

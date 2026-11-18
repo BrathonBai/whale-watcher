@@ -11,6 +11,18 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /**
+ * "保底至少留 1 个"的 keep 值。
+ *
+ * 2026-11-02 审计（E-05）：配置 `imageKeep: 0` 的语义被写成"全删"，
+ * 而 saveImage() 是先落盘再 prune → 刚拍的照片当场被删，`device_shot` 返回的 path
+ * 指向不存在的文件、/shot.jpg 永远 404（11-01 日志里逐条可见）。
+ * 对"最新一张"这种要立刻被读取的产物，0 应该是"不留历史"，不是"连当前也不留"。
+ */
+export function effectiveKeep(keep, min = 1) {
+  return Math.max(min, Math.max(0, Number(keep) || 0))
+}
+
+/**
  * 保留 dir 下最近 keep 个（按 mtime 倒序），其余删除。
  * @param {string} dir
  * @param {number} keep 保留个数；<=0 表示全部删除

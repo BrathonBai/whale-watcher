@@ -1,0 +1,32 @@
+# 与设备实测分区表一致（2026-11-02 基线；本轮只在尾部追加 coredump，原有分区未动）
+#
+# 为什么要在工程里放这份表：工程默认表是"单 app 1MB"，一旦有人跑 idf.py flash，
+# 就会把 0x8000 处的分区表覆盖成错的偏移 —— 设备直接起不来。用这份表时，
+# idf.py flash 写下去的内容与设备真实布局一致（但**仍然建议**只写 ota_1，
+# 见 firmware/device/build.ps1 与 docs/固件-v0.6-接入大脑.md）。
+#
+# 2026-11-03 变更（coredump）：在未分配尾部 0x1a00000 起划 128 KB `coredump`
+# （data / ESP_PARTITION_SUBTYPE_DATA_COREDUMP，CSV 里写 "coredump"）；
+# 原有 nvsfactory/nvs/otadata/phy_init/model/ota_0/ota_1 的 offset/size **一个都没动**。
+# 128 KB 依据：本工程 ~26 个任务的整段栈 ≈74 KB + TCB/注记 ≈82 KB，64 KB 可能写不下。
+# ⚠️ 风险中：**需刷分区表**（0x8000），刷之前必须备份旧表与当前 app（回滚镜像）。
+# 后果与风险（必读）：
+#   · 只在刷了**新分区表**的机器上生效；只刷 app 不刷表 → coredump 初始化时找不到分区，
+#     日志 warn 一次，不影响启动，但不会有 core dump。
+#   · coredump 分区是在 32 MB flash 的尾部 6 MB（0x1a00000..0x2000000）里切的，
+#     后面还剩 0x1a20000..0x2000000（约 5.88 MB）留给下一轮 storage。
+#   · 刷表前先备份旧表与当前 app（回滚镜像），命令见
+#     docs/迭代-2026-11-03-固件配置与稳定性.md §4。
+#
+# name,       type, subtype, offset,     size
+nvsfactory,   data, 2,       0x9000,     0x32000
+nvs,          data, 2,       0x3b000,    0xd2000
+otadata,      data, 0,       0x10d000,   0x2000
+phy_init,     data, 1,       0x10f000,   0x1000
+model,        data, 130,     0x110000,   0xf0000
+ota_0,        app,  16,      0x200000,   0xc00000
+ota_1,        app,  17,      0xe00000,   0xc00000
+# 2026-11-03 新增：core dump 落 flash。subtype 必须是 coredump(=0x03)：
+# ESP-IDF 的 esp_core_dump 按 (type=data, subtype=coredump) 找分区，写成别的数值
+# （例如 0x3f）会找不到分区 → 只有 warn、没有 dump。CSV 里用名字 "coredump" 最稳。
+coredump,     data, coredump, 0x1a00000, 0x20000

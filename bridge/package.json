@@ -17,7 +17,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node test/protocol.test.mjs && node test/ws.test.mjs && node test/contract.test.mjs && node test/session.mjs && node test/loop.mjs && node test/audit.mjs",
+    "test": "node test/protocol.test.mjs && node test/ws.test.mjs && node test/contract.test.mjs && node test/retention.test.mjs && node test/adpcm.test.mjs && node test/speech.test.mjs && node test/speech-queue.test.mjs && node test/deepseek-speech.test.mjs && node test/opus.test.mjs && node test/session.mjs && node test/loop.mjs && node test/loop-ble.mjs && node test/audit.mjs",
     "contract": "node tools/gen-contract-doc.mjs"
   },
   "engines": {

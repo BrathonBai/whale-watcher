@@ -14,18 +14,23 @@
 //
 // 单设备模型不变：新连接顶掉旧连接（设备硬复位后不会卡在僵尸 socket 上）。
 import { acceptUpgrade } from './ws.js'
-import { DOWNLINK, TOOLS, UNSUPPORTED, UPLINK } from './contract.js'
+import { AUDIO, DOWNLINK, TOOLS, UNSUPPORTED, UPLINK } from './contract.js'
 import { audioEnd, audioHead, face, ping, say, shot, welcome } from './protocol.js'
 
 const COLLECTOR_TIMEOUT_MS = 30000
 const SWEEP_MS = 2000
+/** 保留最近多少个 pong 诊断样本给自适应码率用（心跳 25 s/次 → 16 条约 6 分钟）。 */
+const PONG_HISTORY = 16
 
 export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, onClose }) {
   let conn = null
   let connectedAt = 0
+  let lastPongAt = 0   // BR-05/E-08：心跳 pong 的时间戳；用来判"假在线"
   let lastEvent = null
   let lastSpoken = ''
   let hello = null
+  let lastDiag = null  // 最近一次 pong 里带的链路/音频诊断（老固件则一直是 null）
+  const pongHistory = [] // 最近 N 个 pong 诊断（自适应码率的滚动窗口）
   let collector = null // { kind, seq, bytes, got, buf, startedAt, meta }
   let seq = 0
   let warnedOrphan = false
@@ -90,7 +95,7 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
         log.info(`图片接收完成 ${acc.bytes} B ${acc.w}x${acc.h}（${acc.ms} ms）`)
         onImage?.(acc)
       } else {
-        log.info(`语音接收完成 ${acc.bytes} B @${acc.rate}Hz（${acc.ms} ms）`)
+        log.info(`语音接收完成 ${acc.bytes} B @${acc.rate}Hz codec=${acc.codec || 'pcm'}（${acc.ms} ms）`)
         onVoice?.(acc)
       }
     }
@@ -124,6 +129,13 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
     get connectedMs() {
       return conn?.alive ? Date.now() - connectedAt : 0
     },
+    /** 距上次 pong 多久（ms）；从没收到过返回 null。 */
+    get pongAgeMs() {
+      return lastPongAt ? Date.now() - lastPongAt : null
+    },
+    get lastPongAt() {
+      return lastPongAt || null
+    },
     get lastEvent() {
       return lastEvent
     },
@@ -135,12 +147,46 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
     },
     /** 设备自报身份（hello 里来的）；没握手前是契约里的预期值。 */
     get version() {
-      return hello ?? { fw: '', board: '', ver: '', cam: 0, w: 0, h: 0 }
+      return hello ?? { fw: '', board: '', ver: '', cam: 0, w: 0, h: 0, codecs: [], opusRate: 0, transport: 'wifi', uplink: 'pcm', mtu: 0, name: '' }
+    },
+    /** 设备声明的音频编码（hello.codecs）；老固件没有该字段 → []（只会 PCM）。 */
+    get codecs() {
+      return Array.isArray(hello?.codecs) ? hello.codecs : []
+    },
+    /** 设备侧 Opus 解码采样率（hello.opusRate）；老固件没有 → 0。 */
+    get opusRate() {
+      return Number(hello?.opusRate) || 0
+    },
+    /** 当前链路类型（"ble"/"wifi"；老固件缺省 wifi）。 */
+    get transport() {
+      return hello?.transport || 'wifi'
+    },
+    /** 本次会话 voice 二进制用的上行编码（"pcm"/"adpcm"；老固件缺省 pcm）。 */
+    get uplink() {
+      return hello?.uplink || 'pcm'
+    },
+    /** 显示名（hello.name，如 "Jingjing-1A2B"）；老固件空串。 */
+    get name() {
+      return hello?.name || ''
+    },
+    /** BLE MTU（hello.mtu）；wifi/老固件为 0。 */
+    get mtu() {
+      return Number(hello?.mtu) || 0
+    },
+    /** 最近一次 pong 带的诊断字段（bufMs/underruns/reconnects/rssi/codec）；没有则 null。 */
+    get lastDiag() {
+      return lastDiag
+    },
+    /** 最近 N 个 pong 诊断（只读副本），给自适应码率做滚动健康度。 */
+    get pongHistory() {
+      return pongHistory.slice()
     },
     get capabilities() {
       return {
         uplink: [...UPLINK],
         downlink: [...DOWNLINK],
+        uplinkCodecs: Array.isArray(AUDIO?.uplinkCodecs) ? [...AUDIO.uplinkCodecs] : ['pcm'],
+        downlinkCodecs: Array.isArray(AUDIO?.codecs) ? [...AUDIO.codecs] : ['pcm'],
         unsupported: { ...UNSUPPORTED },
         tools: [...TOOLS],
       }
@@ -208,8 +254,11 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
         conn = null
         log.warn('已有连接，被新连接顶掉（设备可能刚重启）')
       }
+      // wsToken：手机端 guest 注入时配置；PC 默认空 = 不校验（老固件不用改）。
+      const token = String(cfg.get().wsToken ?? '').trim()
       const c = acceptUpgrade(req, socket, head, {
         path: cfg.get().path,
+        token,
         onMessage: (raw) => {
           ++counters.up
           onMessage(raw)
@@ -217,7 +266,12 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
         onBinary: feed,
         onOpen: () => {
           connectedAt = Date.now()
-          log.info('设备 WebSocket 已连接')
+          lastPongAt = 0
+          // 新连接 = 新会话：能力声明与健康样本都不再可信，等设备重新 hello/pong。
+          hello = null
+          lastDiag = null
+          pongHistory.length = 0
+          log.info(`设备 WebSocket 已连接${token ? '（已校验 wsToken）' : ''}`)
           onOpen?.()
         },
         onClose: () => {
@@ -236,7 +290,24 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
     /** 上行分发：进环、进日志，再交给业务层。 */
     ingest(msg) {
       lastEvent = { at: Date.now(), msg }
-      if (msg.t === 'hello') hello = { fw: msg.fw, board: msg.board, ver: msg.ver, cam: msg.cam, w: msg.w, h: msg.h }
+      if (msg.t === 'hello') {
+        // codecs/opusRate 是 2026-11-03 新增的可选能力声明；老固件没有 → [] / 0。
+        // transport/uplink/mtu/name 是 2026-11-13（BLE）新增的可选链路声明；老固件 → wifi/pcm/0/''。
+        hello = {
+          fw: msg.fw,
+          board: msg.board,
+          ver: msg.ver,
+          cam: msg.cam,
+          w: msg.w,
+          h: msg.h,
+          codecs: Array.isArray(msg.codecs) ? msg.codecs.slice() : [],
+          opusRate: Number(msg.opusRate) || 0,
+          transport: msg.transport || 'wifi',
+          uplink: msg.uplink || 'pcm',
+          mtu: Number(msg.mtu) || 0,
+          name: msg.name || '',
+        }
+      }
       record0(msg.t, msg)
 
       if (msg.t === 'image') {
@@ -245,11 +316,25 @@ export function createDevice({ cfg, log, onMessage, onVoice, onImage, onOpen, on
         return
       }
       if (msg.t === 'voice') {
-        beginCollector('voice', { seq: msg.seq, bytes: msg.bytes, rate: msg.rate })
-        log.info(`语音上行 seq=${msg.seq} ${msg.bytes} B @${msg.rate}Hz`)
+        // 2026-11-13：voice 头可能带 codec（pcm/adpcm）与 samples（解码后采样数）。
+        beginCollector('voice', { seq: msg.seq, bytes: msg.bytes, rate: msg.rate, codec: msg.codec || 'pcm', samples: msg.samples })
+        log.info(`语音上行 seq=${msg.seq} ${msg.bytes} B @${msg.rate}Hz codec=${msg.codec || 'pcm'}${msg.samples ? ` samples=${msg.samples}` : ''}`)
         return
       }
-      if (msg.t === 'pong') return
+      if (msg.t === 'pong') {
+        lastPongAt = Date.now()
+        // 只记真的出现了的字段：缺字段 ≠ 0（否则自适应会把"没有数据"当成"缓冲见底"）。
+        // 2026-11-13：不再硬编码字段名，pong 里新增的 transport/mtu/txDrop/rxDrop（以及未来字段）
+        // 都原样收进 lastDiag，面板/diag 才看得见 BLE 链路健康。
+        lastDiag = { at: lastPongAt }
+        for (const [k, v] of Object.entries(msg)) {
+          if (k === 't') continue
+          if (typeof v === 'number' || typeof v === 'string') lastDiag[k] = v
+        }
+        pongHistory.push(lastDiag)
+        while (pongHistory.length > PONG_HISTORY) pongHistory.shift()
+        return
+      }
       log.info(`← ${msg.t}`)
     },
 

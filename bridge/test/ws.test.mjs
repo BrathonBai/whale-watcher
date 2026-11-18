@@ -74,3 +74,67 @@ test('超长帧被拒', () => {
   const { error } = p.push(clientFrame(OPCODE.TEXT, 'x'.repeat(64)))
   assert.equal(error, 'frame too large')
 })
+
+// ============ 2026-11-13：/device 的 wsToken 校验（手机 loopback 用） ============
+import { acceptUpgrade } from '../lib/ws.js'
+
+/** 假 socket：只记录写/销毁，acceptUpgrade 成功路径需要 on/setNoDelay。 */
+function fakeSocket() {
+  const writes = []
+  return {
+    writes,
+    destroyed: false,
+    write(s) {
+      writes.push(String(s))
+    },
+    end() {},
+    destroy() {
+      this.destroyed = true
+    },
+    setNoDelay() {},
+    on() {},
+  }
+}
+
+/** 用真实握手头构造一个 upgrade 请求。 */
+function upgradeReq(url) {
+  return {
+    url,
+    headers: {
+      upgrade: 'websocket',
+      'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+    },
+  }
+}
+
+test('acceptUpgrade：配置了 token 时，错误/缺失 token → 401 且不升级', () => {
+  for (const url of ['/device', '/device?token=wrong', '/device?token=']) {
+    const socket = fakeSocket()
+    const conn = acceptUpgrade(upgradeReq(url), socket, Buffer.alloc(0), { path: '/device', token: 'abc123' })
+    assert.equal(conn, null, `${url} 不该升级`)
+    assert.ok(socket.writes[0].includes(' 401 '), `${url} 应返回 401`)
+    assert.equal(socket.destroyed, true)
+  }
+})
+
+test('acceptUpgrade：token 正确 → 101 升级；未配置 token 时不校验（PC 老行为）', () => {
+  const ok = fakeSocket()
+  const conn = acceptUpgrade(upgradeReq('/device?token=abc123'), ok, Buffer.alloc(0), {
+    path: '/device',
+    token: 'abc123',
+    onOpen: () => {},
+  })
+  assert.ok(conn, 'token 正确应升级')
+  assert.ok(ok.writes[0].startsWith('HTTP/1.1 101'), ok.writes[0])
+
+  const legacy = fakeSocket()
+  const conn2 = acceptUpgrade(upgradeReq('/device'), legacy, Buffer.alloc(0), { path: '/device' })
+  assert.ok(conn2, '未配置 token（空串）时老行为不变')
+})
+
+test('acceptUpgrade：路径不对仍然是 404（先于 token 校验）', () => {
+  const socket = fakeSocket()
+  const conn = acceptUpgrade(upgradeReq('/other?token=abc123'), socket, Buffer.alloc(0), { path: '/device', token: 'abc123' })
+  assert.equal(conn, null)
+  assert.ok(socket.writes[0].includes(' 404 '))
+})

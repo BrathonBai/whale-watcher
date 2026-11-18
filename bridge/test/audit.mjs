@@ -39,8 +39,9 @@ function staticConfigAudit() {
     const lines = fs.readFileSync(path.join(LIB, f), 'utf8').split('\n')
     const aliases = new Set()
     lines.forEach((line, i) => {
-      for (const m of line.matchAll(/([A-Za-z_$][\w$]*)\s*=\s*(?:cfg\.get\(\)|cfg\.value\(\))/g)) aliases.add(m[1])
-      for (const m of line.matchAll(/cfg\.get\(\)\.([A-Za-z_$][\w$]*)/g)) record(m[1], f, i + 1)
+      // 也认可选链写法 `cfg?.get?.()`（audio_profile.js 用它做防御性读取）
+      for (const m of line.matchAll(/([A-Za-z_$][\w$]*)\s*=\s*cfg\??\.(?:get|value)\??\.?\(\)/g)) aliases.add(m[1])
+      for (const m of line.matchAll(/cfg\??\.(?:get|value)\??\.?\(\)\.([A-Za-z_$][\w$]*)/g)) record(m[1], f, i + 1)
       for (const a of aliases) {
         for (const m of line.matchAll(new RegExp(`\\b${a}\\.([A-Za-z_$][\\w$]*)`, 'g'))) record(m[1], f, i + 1)
       }

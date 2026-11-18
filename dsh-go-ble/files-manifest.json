@@ -1,0 +1,255 @@
+{
+ "format": "dsh-go-ble-overlay/v1",
+ "upstream": {
+  "version": "1.0.16",
+  "source": "dsh-Go-main.zip",
+  "sha256OfZip": "2628ddd96966d7e157a7a285520d641b661a4ca8cfc6127b453ccfd7776555be"
+ },
+ "counts": {
+  "total": 46,
+  "added": 36,
+  "replaced": 10
+ },
+ "entries": [
+  {
+   "path": "app/android/app/src/main/AndroidManifest.xml",
+   "kind": "replaced",
+   "upstreamSha256": "8285fa9cd838e14e48146905cb7e1ca83319fd5fbadd3d67c84a00241b9decae",
+   "overlaySha256": "1c5e397b095e3c3bd34fc058152650e30ca15a7479fcfee18ed76932d22934c1"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/MainActivity.kt",
+   "kind": "replaced",
+   "upstreamSha256": "6eb151af7a211a5d62713aa88ae011c262db113754489a824401206b46f17ab4",
+   "overlaySha256": "e186393013c1ae2dac059eca0b6e96d6fbaeb00e93cd3f1d339cda0330e572f6"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedBlePlugin.kt",
+   "kind": "added",
+   "overlaySha256": "6f7317ddfefa78cbef072cf6a203ec3afa76ef83af29af2703a423688b5bae73"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedBleService.kt",
+   "kind": "added",
+   "overlaySha256": "a8b98696a43fb9ba8f2f8e296ce03b81c2ce4ffc4c9b341b68331a10e07b580c"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedFraming.kt",
+   "kind": "added",
+   "overlaySha256": "2401b752052008eabd58218fb7c572600944fedc262f346b841ea5ddf015ba6f"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedGateway.kt",
+   "kind": "added",
+   "overlaySha256": "a72dcb4712004d67c2b8b400f7b134cf1017432c80c37f716abbb62fcb549276"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedPrefs.kt",
+   "kind": "added",
+   "overlaySha256": "27f88719ff15e7963d0270e64dfe3baf522a69eb5b1979baf1bd9125b3611183"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/EmbodiedWebSocket.kt",
+   "kind": "added",
+   "overlaySha256": "1bb122fd131e38774fc36e82d999e50e2bb672d626ef13fe22c4b66eb0fc174f"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/embodied/README.md",
+   "kind": "added",
+   "overlaySha256": "2648c0956fa72af3a0124efb87a02320505be5022ddec783b866a6d51cdb3190"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/DshProcess.kt",
+   "kind": "replaced",
+   "upstreamSha256": "82521551feab83de2d49660043b327cc2603e672b027b92bc514b6e5f585df89",
+   "overlaySha256": "b338898eeb246214da2ca5da8837ae7980f6a42d913d1e644ca66599282a3388"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/EmbodiedGuest.kt",
+   "kind": "added",
+   "overlaySha256": "d87e629b47316de1b799454b39552f0cbeec8287bfb862808d1a45e7d8148f88"
+  },
+  {
+   "path": "app/android/app/src/main/kotlin/io/github/ccch1mneyyy/dsh_app/runtime/RuntimeController.kt",
+   "kind": "replaced",
+   "upstreamSha256": "082da2e7799a72be1dcea7f7b66646d2e1e141740e146e34019f60a880ee8a05",
+   "overlaySha256": "29c32041d94ebbcb5a9c1366df427c6da4df79a12bbc522aed220dffe4e9b39c"
+  },
+  {
+   "path": "app/assets/engine/embodied/ASSETS-MANIFEST.json",
+   "kind": "added",
+   "overlaySha256": "1fcc3ca17de4d89f3151c31af8f8c1be4360ef8530ea9ba15d2a91cbdf6c723d"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/adpcm.js",
+   "kind": "added",
+   "overlaySha256": "d6b7c9140f474b5a387a2b9d981c0169daa4f060dbf349dda1232091239034f5"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/asr.js",
+   "kind": "added",
+   "overlaySha256": "3bf36a251ead9fb4057cd37d7b83ea3ea2c254dc1da98f0d5427b9780c1a316b"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/audio_profile.js",
+   "kind": "added",
+   "overlaySha256": "fa760dd06cf56c89fcd5f2083641739d58c0373072c27350bcd2fc0069cdc96d"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/brain.js",
+   "kind": "added",
+   "overlaySha256": "accb0b9a198e64732a4035a761ab8f1ba3d06e5028997b0b38323b663af7b2bd"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/config.js",
+   "kind": "added",
+   "overlaySha256": "4c7fb2542dcf62181c104c44204c7765ca5a750aa87f79e496149263115fc66e"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/contract.js",
+   "kind": "added",
+   "overlaySha256": "85171023accaba40fae5d0ef6db3b9b03f8d58f16b57bb9580fab0308c795bdf"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/deepseek.js",
+   "kind": "added",
+   "overlaySha256": "5d31135ddb3fa510bd289745e928ca99d53d253f788fd492013133503071c08d"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/device.js",
+   "kind": "added",
+   "overlaySha256": "08c9d74034054d0d4c401cf684bed32eac73555e503733364ce62109221ac3b6"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/http.js",
+   "kind": "added",
+   "overlaySha256": "5c7f2cb72653f5fa173ed867a7ebf9cc3a958bd3fcb6db3ae4b59dd3d083c1bd"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/index.js",
+   "kind": "added",
+   "overlaySha256": "9156bf9f167be321e77e22fed167e6d77bfea6ca948c44e1945e4eda84e7af4e"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/opus_encode.js",
+   "kind": "added",
+   "overlaySha256": "e8399194792d5d252b18c3e7b21e6dde94f8b0cc873570c4479aa963b9f9fb37"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/panel.html",
+   "kind": "added",
+   "overlaySha256": "221b73adb53ee5113e618d8f93325b6f90a83e5738986137ffcf7051aab96416"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/protocol.js",
+   "kind": "added",
+   "overlaySha256": "0783fdd6cea1a5ec8de9f0a0b2b4f4a6d1f081b03ae708a1a4118c27448ce775"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/retention.js",
+   "kind": "added",
+   "overlaySha256": "e6772c6d06c6946d41cf55611e33b658e4a8d1e13fc468ddff971b0f2b10adc1"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/speech.js",
+   "kind": "added",
+   "overlaySha256": "5702b80d093eb84987ee3ef2ebc9fa323bf15760ebcba10d3527a6e435277f3c"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/tools.js",
+   "kind": "added",
+   "overlaySha256": "3c9043be80ed75737df558fdaa95635603ba6fc5f7700809d9dec5d8e9d9db26"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/tts.js",
+   "kind": "added",
+   "overlaySha256": "f09cd65b54f43c0b648152b636d28dee8f6cd34fa38a81668a888a978004df1a"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/tts_breeze.js",
+   "kind": "added",
+   "overlaySha256": "8832e8fa59bb585effd2d9424cbd063692aeed2c4d8d8288b1db380d66868a16"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/tts_edge.js",
+   "kind": "added",
+   "overlaySha256": "c5d30e56aa25bdbba8a561b22e9b0e601aefb54b6d68a7c58abac30c74e20963"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/voicecache.js",
+   "kind": "added",
+   "overlaySha256": "5b715ffd55179812c1ac7d558418c4b64a0a68fb5021adaabc12d48323e4a3ca"
+  },
+  {
+   "path": "app/assets/engine/embodied/lib/ws.js",
+   "kind": "added",
+   "overlaySha256": "f7b5fbec385c055884968a559cafc37eaee7fd865c8ff84dec042ce280d91425"
+  },
+  {
+   "path": "app/assets/engine/embodied/package.json",
+   "kind": "added",
+   "overlaySha256": "d9932b9e3c16f9f269b2c83dc77e79fed8a0dd391543535652430e08b058bd8b"
+  },
+  {
+   "path": "app/lib/embodied/embodied_channel.dart",
+   "kind": "added",
+   "overlaySha256": "43d737d376ccf608cba387518b2ddd73a08750f02d5053869cd9df6d941353e1"
+  },
+  {
+   "path": "app/lib/embodied/embodied_state.dart",
+   "kind": "added",
+   "overlaySha256": "98a943256e511944ac378838ac4033f0f10da0cd36c599c494b5c94891233532"
+  },
+  {
+   "path": "app/lib/embodied/embodied_strings.dart",
+   "kind": "added",
+   "overlaySha256": "bee6a6d78cc1b828b438d584aba6fd16a3ad942bf26a5b2e3b4cd9aa7967c3ec"
+  },
+  {
+   "path": "app/lib/ui/settings/embodied_page.dart",
+   "kind": "added",
+   "overlaySha256": "a91c3ff1e102f0a236d05454d00cc8809bd1f586f9cbe85d7f6589652c46803d"
+  },
+  {
+   "path": "app/lib/ui/settings/index/settings_pages.dart",
+   "kind": "replaced",
+   "upstreamSha256": "f401c9e861570ae4d0202c59b333fbe78a156a8e547d84cc81780585b2640053",
+   "overlaySha256": "24a38ea8484bb39deca06fb7a69506f4a7db8fa8fb814302b095a3c295e0563a"
+  },
+  {
+   "path": "app/lib/ui/settings/index/spots.dart",
+   "kind": "replaced",
+   "upstreamSha256": "5a6bf501bcaad55f6ba7877753a2363de28bfca709ef81359fba6f3caa443015",
+   "overlaySha256": "544ff57f024e7cb3316707f862c17da9166baea153e545d36439b70f8402218c"
+  },
+  {
+   "path": "app/lib/ui/settings/settings_screen.dart",
+   "kind": "replaced",
+   "upstreamSha256": "29c53e90152bb7c03212c92f0524440aadd70cc5348a1dc8f3ef4850e1e3df40",
+   "overlaySha256": "9296fa384550158d5ddd033162b842c76427eed37bd228093163d61dc45ec9dd"
+  },
+  {
+   "path": "app/pubspec.yaml",
+   "kind": "replaced",
+   "upstreamSha256": "02256943bcfbbef04d44e217c90ec5b5a3aa196f213d7674c76f6df98f06a1da",
+   "overlaySha256": "0f192021c0c3b24e2f8b29e73bd49cd0c996baaf26d86403191d913f8e411530"
+  },
+  {
+   "path": "app/test/flutter_test_config.dart",
+   "kind": "replaced",
+   "upstreamSha256": "a600b58a197a9695cbd36de90d45ce37444f79320bf726b606ac1444f6d36825",
+   "overlaySha256": "b43a2e7fdf5b4c5b466b39a3f8fcfe6c22f71255f2cc750a3dce3d5b90195999"
+  },
+  {
+   "path": "app/test/settings/index/index_sync_test.dart",
+   "kind": "replaced",
+   "upstreamSha256": "d3bd13ec56574a5be30d83d3fe80bab425705b3b628a086549c1d49d1e193ccb",
+   "overlaySha256": "cb9436a1179e31f3fb4c51536cc41f2c4503a644c6fbff903a5c00961f488cc1"
+  },
+  {
+   "path": "app/test/support/quiet_embodied.dart",
+   "kind": "added",
+   "overlaySha256": "aa2db2599ddf458ee02f8e84ee17641e7e6d25805ed8114a8f9a94b9d64e452a"
+  }
+ ]
+}

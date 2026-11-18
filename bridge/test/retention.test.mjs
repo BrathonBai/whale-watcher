@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { dirStats, pruneDir } from '../lib/retention.js'
+import { dirStats, effectiveKeep, pruneDir } from '../lib/retention.js'
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'retention-'))
 const touch = (dir, name, ageMs, size = 10) => {
@@ -67,4 +67,23 @@ test('dirStats 只统计匹配的文件与字节', () => {
   touch(d, 'c.wav', 1000, 999)
   assert.deepEqual(dirStats(d, (n) => n.endsWith('.jpg')), { files: 2, bytes: 150 })
   assert.deepEqual(dirStats(path.join(d, 'nope')), { files: 0, bytes: 0 })
+})
+
+test('effectiveKeep：0 表示"不留历史"，但最新一张必须保住（E-05）', () => {
+  // 现场故障：config.json 的 imageKeep=0 → saveImage 先落盘再 prune → 刚拍的照片当场被删，
+  // device_shot 返回的 path 指向不存在的文件。这里锁死"至少留 1"的语义。
+  assert.equal(effectiveKeep(0), 1)
+  assert.equal(effectiveKeep(-5), 1)
+  assert.equal(effectiveKeep(undefined), 1)
+  assert.equal(effectiveKeep(NaN), 1)
+  assert.equal(effectiveKeep(20), 20)
+  assert.equal(effectiveKeep('3'), 3)
+  assert.equal(effectiveKeep(0, 2), 2)
+
+  const d = tmp()
+  touch(d, 'old.jpg', 9000)
+  touch(d, 'newest.jpg', 1000)
+  const r = pruneDir(d, effectiveKeep(0), (n) => n.endsWith('.jpg'))
+  assert.equal(r.removed, 1, '只删旧的')
+  assert.deepEqual(fs.readdirSync(d), ['newest.jpg'], '最新一张必须还在')
 })

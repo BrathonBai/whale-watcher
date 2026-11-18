@@ -174,7 +174,7 @@ export function createBrain({ cfg, log, dsh, onReply, onTurnStart, onThinking, o
   }
 
   // ---------------- llm 模式 ----------------
-  function catalog() {
+  async function catalog() {
     const llm = dsh.llm ?? dsh.get?.('llm')
     const ids = (() => {
       try {
@@ -186,7 +186,7 @@ export function createBrain({ cfg, log, dsh, onReply, onTurnStart, onThinking, o
     const models = {}
     for (const id of ids) {
       try {
-        const list = llm.listModels({ provider: id }) ?? llm.listModels(id) ?? []
+        const list = (await llm.listModels(id)) ?? []
         models[id] = (Array.isArray(list) ? list : []).map((m) => (typeof m === 'string' ? m : m?.id ?? m?.name ?? String(m)))
       } catch {
         models[id] = []
@@ -196,7 +196,7 @@ export function createBrain({ cfg, log, dsh, onReply, onTurnStart, onThinking, o
   }
 
   async function askLlm(text) {
-    const { llm, ids, models } = catalog()
+    const { llm, ids, models } = await catalog()
     if (!llm || typeof llm.stream !== 'function') throw Object.assign(new Error('没有可用的 llm 服务'), { code: 'NO_LLM' })
     const want = { provider: String(cfg.get().provider || ''), model: String(cfg.get().model || '') }
     const candidates = []

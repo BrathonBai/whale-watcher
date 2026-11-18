@@ -59,14 +59,23 @@ function run(cmd, args, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd.includes("curl") ? CURL : cmd, args, { windowsHide: true })
     let err = ''
+    let settled = false
+    const done = (fn, v) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn(v)
+    }
+    // 审计 BR-12：spawn 失败（curl/ffmpeg 路径不对、权限）会触发未处理的 'error' 事件，
+    // Node 默认把整个宿主进程打挂；必须显式 reject。
+    child.on('error', (e) => done(reject, e))
     child.stderr.on('data', (d) => (err += d.toString()))
     const timer = setTimeout(() => {
       try { child.kill() } catch {}
-      reject(new Error('超时'))
+      done(reject, new Error('超时'))
     }, timeoutMs)
     child.on('close', (code) => {
-      clearTimeout(timer)
-      code === 0 ? resolve() : reject(new Error(`${path.basename(cmd)} 失败(${code}): ${err.slice(0, 200)}`))
+      code === 0 ? done(resolve) : done(reject, new Error(`${path.basename(cmd)} 失败(${code}): ${err.slice(0, 200)}`))
     })
   })
 }

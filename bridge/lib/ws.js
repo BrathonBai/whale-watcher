@@ -1,4 +1,4 @@
-﻿// 极简 RFC 6455 WebSocket 服务端实现（无第三方依赖）。
+// 极简 RFC 6455 WebSocket 服务端实现（无第三方依赖）。
 //
 // 只覆盖本桥需要的子集：
 //   - 服务端完成握手（Sec-WebSocket-Accept）
@@ -158,11 +158,21 @@ export class FrameParser {
   }
 }
 
-/** 在 http server 的 'upgrade' 事件上完成握手，回调拿到一个已就绪的连接。 */
-export function acceptUpgrade(req, socket, head, { path = '/device', onMessage, onBinary, onClose, onOpen } = {}) {
+/** 在 http server 的 'upgrade' 事件上完成握手，回调拿到一个已就绪的连接。
+ *
+ * token（2026-11-13）：非空时要求 `?token=` 完全一致，否则 401。给手机端用：
+ * 手机 loopback 上任何 App 都能连 127.0.0.1，必须给设备控制面加一道口令；
+ * PC 默认空串 = 行为完全不变（设备固件不用改）。
+ */
+export function acceptUpgrade(req, socket, head, { path = '/device', token = '', onMessage, onBinary, onClose, onOpen } = {}) {
   const url = new URL(req.url ?? '/', 'http://localhost')
   if (url.pathname !== path) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n')
+    socket.destroy()
+    return null
+  }
+  if (String(token ?? '') && url.searchParams.get('token') !== String(token)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n')
     socket.destroy()
     return null
   }
